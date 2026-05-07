@@ -404,8 +404,7 @@ async function getOrCreateTargetWindow(windowName) {
     }
   }
 
-  const namedPage = `data:text/html,${encodeURIComponent(`<title>${windowName || "calendar-site-opener"}</title><body style="font-family:system-ui;padding:16px">Window: ${windowName || "default"}</body>`)}`;
-  const created = await chrome.windows.create({ focused: false, url: namedPage });
+  const created = await chrome.windows.create({ focused: false });
   windowNames[key] = created.id;
   await chrome.storage.local.set({ windowNames });
   return created.id;
