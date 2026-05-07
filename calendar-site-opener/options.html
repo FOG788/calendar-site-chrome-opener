@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calendar Site Opener Settings</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="options">
+      <h1>Calendar Site Opener Settings</h1>
+
+      <form id="settingsForm">
+        <label>
+          カレンダーID
+          <input id="calendarId" name="calendarId" type="text" placeholder="primary" />
+        </label>
+
+        <label>
+          予定名の目印
+          <input id="marker" name="marker" type="text" placeholder="[OPEN]" />
+        </label>
+
+        <label>
+          URLが見つからない場合のデフォルトURL
+          <input id="defaultUrl" name="defaultUrl" type="url" placeholder="https://chatgpt.com/" />
+        </label>
+
+        <label>
+          何時間先まで予定を取得するか
+          <input id="lookAheadHours" name="lookAheadHours" type="number" min="1" max="720" />
+        </label>
+
+        <label>
+          予定の再同期間隔・分
+          <input id="refreshMinutes" name="refreshMinutes" type="number" min="1" max="1440" />
+        </label>
+
+        <label>
+          予定時刻を過ぎても開く猶予・分
+          <input id="missedGraceMinutes" name="missedGraceMinutes" type="number" min="0" max="1440" />
+        </label>
+
+        <label class="checkbox">
+          <input id="openActiveTab" name="openActiveTab" type="checkbox" />
+          新しいタブをアクティブにする
+        </label>
+
+        <button type="submit">保存</button>
+      </form>
+
+      <section class="status-card">
+        <div class="label">状態</div>
+        <div id="status">読み込み中...</div>
+      </section>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>

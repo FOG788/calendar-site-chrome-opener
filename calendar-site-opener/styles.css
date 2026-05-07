@@ -1,0 +1,99 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  color: CanvasText;
+  background: Canvas;
+}
+
+.popup {
+  width: 280px;
+  padding: 14px;
+}
+
+.options {
+  max-width: 680px;
+  padding: 24px;
+}
+
+h1 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+
+.buttons {
+  display: grid;
+  gap: 8px;
+}
+
+button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 700;
+  background: #2563eb;
+  color: white;
+}
+
+button.secondary {
+  background: #4b5563;
+}
+
+.status-card {
+  margin-top: 12px;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.label {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+#status,
+#nextEvent {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+form {
+  display: grid;
+  gap: 14px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, CanvasText 24%, transparent);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.checkbox {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  font-weight: 500;
+}
+
+.checkbox input {
+  width: auto;
+}

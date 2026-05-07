@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calendar Site Opener</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <h1>Calendar Site Opener</h1>
+
+      <section class="buttons">
+        <button id="connect">Googleカレンダーに接続</button>
+        <button id="refresh" class="secondary">予定を再読み込み</button>
+        <button id="openOptions" class="secondary">設定を開く</button>
+      </section>
+
+      <section class="status-card">
+        <div class="label">状態</div>
+        <div id="status">読み込み中...</div>
+      </section>
+
+      <section class="status-card">
+        <div class="label">次に開く予定</div>
+        <div id="nextEvent">未設定</div>
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

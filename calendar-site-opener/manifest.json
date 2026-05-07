@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Calendar Site Opener",
+  "version": "0.1.0",
+  "description": "Open URLs from Google Calendar events in new Chrome tabs.",
+  "permissions": [
+    "alarms",
+    "storage",
+    "identity",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*"
+  ],
+  "oauth2": {
+    "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.events.readonly"
+    ]
+  },
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Calendar Site Opener"
+  },
+  "options_page": "options.html"
+}
