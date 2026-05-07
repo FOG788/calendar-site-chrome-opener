@@ -12,11 +12,11 @@ const ALARM_REFRESH = "refresh-calendar-events";
 const ALARM_OPEN_NEXT = "open-next-calendar-site";
 
 chrome.runtime.onInstalled.addListener(() => {
-  bootstrap();
+  bootstrap().catch(saveLastError);
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  bootstrap();
+  bootstrap().catch(saveLastError);
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
