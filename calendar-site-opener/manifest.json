@@ -13,7 +13,7 @@
     "https://www.googleapis.com/*"
   ],
   "oauth2": {
-    "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+    "client_id": "398440037614-qs875pae8kfk9a85vtfl5vkpuihkl9g6.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/calendar.events.readonly"
     ]
