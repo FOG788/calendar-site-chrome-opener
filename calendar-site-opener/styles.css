@@ -77,7 +77,8 @@ label {
   font-weight: 700;
 }
 
-input {
+input,
+select {
   box-sizing: border-box;
   width: 100%;
   border: 1px solid color-mix(in srgb, CanvasText 24%, transparent);
@@ -96,4 +97,10 @@ input {
 
 .checkbox input {
   width: auto;
+}
+
+.hint {
+  margin: -10px 0 0;
+  font-size: 12px;
+  opacity: 0.75;
 }
