@@ -404,7 +404,8 @@ async function getOrCreateTargetWindow(windowName) {
     }
   }
 
-  const created = await chrome.windows.create({ focused: false });
+  const labelUrl = chrome.runtime.getURL(`window_label.html?name=${encodeURIComponent(windowName)}`);
+  const created = await chrome.windows.create({ focused: false, url: labelUrl });
   windowNames[key] = created.id;
   await chrome.storage.local.set({ windowNames });
   return created.id;
