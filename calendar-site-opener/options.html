@@ -13,7 +13,7 @@
       <form id="settingsForm">
         <label>
           カレンダーID
-          <input id="calendarId" name="calendarId" type="text" placeholder="primary" />
+          <select id="calendarId" name="calendarId"></select>
         </label>
 
         <label>
@@ -25,6 +25,17 @@
           URLが見つからない場合のデフォルトURL
           <input id="defaultUrl" name="defaultUrl" type="url" placeholder="https://chatgpt.com/" />
         </label>
+
+        <label class="checkbox">
+          <input id="skipNoUrlEvents" name="skipNoUrlEvents" type="checkbox" />
+          URLがない予定は開かない
+        </label>
+
+        <label>
+          Chromeウィンドウ名
+          <input id="targetWindowName" name="targetWindowName" type="text" placeholder="work" />
+        </label>
+        <p class="hint">※ 同じ名前を入れると同じウィンドウに開きます。初回は自動で新規ウィンドウを作成し、以後その名前に紐づけます。</p>
 
         <label>
           何時間先まで予定を取得するか
