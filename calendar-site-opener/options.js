@@ -5,6 +5,8 @@ const fields = {
   calendarId: document.getElementById("calendarId"),
   marker: document.getElementById("marker"),
   defaultUrl: document.getElementById("defaultUrl"),
+  skipNoUrlEvents: document.getElementById("skipNoUrlEvents"),
+  targetWindowName: document.getElementById("targetWindowName"),
   lookAheadHours: document.getElementById("lookAheadHours"),
   refreshMinutes: document.getElementById("refreshMinutes"),
   missedGraceMinutes: document.getElementById("missedGraceMinutes"),
@@ -21,6 +23,8 @@ form.addEventListener("submit", async (event) => {
     calendarId: fields.calendarId.value,
     marker: fields.marker.value,
     defaultUrl: fields.defaultUrl.value,
+    skipNoUrlEvents: fields.skipNoUrlEvents.checked,
+    targetWindowName: fields.targetWindowName.value,
     lookAheadHours: fields.lookAheadHours.value,
     refreshMinutes: fields.refreshMinutes.value,
     missedGraceMinutes: fields.missedGraceMinutes.value,
@@ -50,6 +54,7 @@ async function loadSettings() {
   }
 
   populate(result.settings);
+  await loadCalendarOptions(result.settings.calendarId);
   setStatus("読み込みました。");
 }
 
@@ -57,10 +62,39 @@ function populate(settings) {
   fields.calendarId.value = settings.calendarId;
   fields.marker.value = settings.marker;
   fields.defaultUrl.value = settings.defaultUrl;
+  fields.skipNoUrlEvents.checked = settings.skipNoUrlEvents;
+  fields.targetWindowName.value = settings.targetWindowName;
   fields.lookAheadHours.value = settings.lookAheadHours;
   fields.refreshMinutes.value = settings.refreshMinutes;
   fields.missedGraceMinutes.value = settings.missedGraceMinutes;
   fields.openActiveTab.checked = settings.openActiveTab;
+}
+
+async function loadCalendarOptions(selectedId) {
+  const result = await chrome.runtime.sendMessage({ type: "listCalendars" });
+  fields.calendarId.innerHTML = "";
+
+  if (!result.ok || !result.calendars?.length) {
+    addCalendarOption(selectedId || "primary", selectedId || "primary");
+    return;
+  }
+
+  for (const cal of result.calendars) {
+    addCalendarOption(cal.id, `${cal.summary} (${cal.id})`);
+  }
+
+  fields.calendarId.value = selectedId;
+  if (fields.calendarId.value !== selectedId) {
+    addCalendarOption(selectedId, `${selectedId} (手入力)`);
+    fields.calendarId.value = selectedId;
+  }
+}
+
+function addCalendarOption(value, label) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  fields.calendarId.append(option);
 }
 
 function setStatus(text) {

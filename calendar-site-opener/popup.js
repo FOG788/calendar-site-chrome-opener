@@ -4,6 +4,10 @@ const nextEventEl = document.getElementById("nextEvent");
 const connectButton = document.getElementById("connect");
 const refreshButton = document.getElementById("refresh");
 const openOptionsButton = document.getElementById("openOptions");
+const createEventButton = document.getElementById("createEvent");
+const newTitleEl = document.getElementById("newTitle");
+const newStartEl = document.getElementById("newStart");
+const newUrlEl = document.getElementById("newUrl");
 
 connectButton.addEventListener("click", async () => {
   setStatus("接続中...");
@@ -19,6 +23,26 @@ refreshButton.addEventListener("click", async () => {
 
 openOptionsButton.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
+});
+
+createEventButton.addEventListener("click", async () => {
+  setStatus("予定を追加中...");
+  const result = await chrome.runtime.sendMessage({
+    type: "createEvent",
+    event: {
+      title: newTitleEl.value,
+      startLocal: newStartEl.value,
+      url: newUrlEl.value
+    }
+  });
+
+  if (!result.ok) {
+    setStatus(`追加に失敗: ${result.error}`);
+    return;
+  }
+
+  setStatus("予定を追加しました。");
+  await loadState();
 });
 
 loadState();
@@ -75,7 +99,8 @@ function renderState(state) {
 
 function renderNextEvent(event) {
   const url = event.url.length > 90 ? `${event.url.slice(0, 90)}...` : event.url;
-  nextEventEl.textContent = `${event.title}\n${formatDateTime(event.startTime)}\n${url}`;
+  const win = event.windowName ? `\nwindow: ${event.windowName}` : "";
+  nextEventEl.textContent = `${event.title}\n${formatDateTime(event.startTime)}\n${url}${win}`;
 }
 
 function setStatus(text) {
