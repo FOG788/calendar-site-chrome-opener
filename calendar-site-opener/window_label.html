@@ -12,10 +12,6 @@
   <body>
     <div class="muted">このタブはウィンドウ識別用です。閉じても動作します。</div>
     <h1 id="name">Window</h1>
-    <script>
-      const name = new URLSearchParams(location.search).get('name') || 'default';
-      document.title = `Window: ${name}`;
-      document.getElementById('name').textContent = `Window: ${name}`;
-    </script>
+    <script src="window_label.js"></script>
   </body>
 </html>
