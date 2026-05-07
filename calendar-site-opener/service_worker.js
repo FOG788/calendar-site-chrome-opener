@@ -2,6 +2,8 @@ const DEFAULT_SETTINGS = {
   calendarId: "primary",
   marker: "[OPEN]",
   defaultUrl: "https://chatgpt.com/",
+  skipNoUrlEvents: false,
+  targetWindowName: "",
   lookAheadHours: 72,
   refreshMinutes: 15,
   missedGraceMinutes: 10,
@@ -66,6 +68,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "listCalendars") {
+    listCalendars()
+      .then((payload) => sendResponse({ ok: true, ...payload }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "createEvent") {
+    createEvent(message.event)
+      .then((payload) => sendResponse({ ok: true, ...payload }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   return false;
 });
 
@@ -116,6 +132,8 @@ function normalizeSettings(settings) {
     calendarId,
     marker,
     defaultUrl,
+    skipNoUrlEvents: Boolean(settings.skipNoUrlEvents),
+    targetWindowName: String(settings.targetWindowName || "").trim(),
     lookAheadHours: clampInteger(settings.lookAheadHours, 1, 24 * 30, DEFAULT_SETTINGS.lookAheadHours),
     refreshMinutes: clampInteger(settings.refreshMinutes, 1, 24 * 60, DEFAULT_SETTINGS.refreshMinutes),
     missedGraceMinutes: clampInteger(settings.missedGraceMinutes, 0, 24 * 60, DEFAULT_SETTINGS.missedGraceMinutes),
@@ -226,10 +244,25 @@ function extractUrl(event, settings) {
   const match = text.match(/https?:\/\/[^\s<>"']+/i);
 
   if (!match) {
-    return settings.defaultUrl;
+    return settings.skipNoUrlEvents ? null : settings.defaultUrl;
   }
 
-  return safeUrl(match[0].replace(/[),.。]+$/, "")) || settings.defaultUrl;
+  return safeUrl(match[0].replace(/[),.。]+$/, "")) || (settings.skipNoUrlEvents ? null : settings.defaultUrl);
+}
+
+function extractWindowName(event, settings) {
+  const text = [
+    event.summary || "",
+    event.description || "",
+    event.location || ""
+  ].join("\n");
+
+  const token = text.match(/\[WIN:([^\]\n]+)\]/i) || text.match(/#win:([^\s\n]+)/i);
+  if (!token) {
+    return settings.targetWindowName || "";
+  }
+
+  return String(token[1] || "").trim() || settings.targetWindowName || "";
 }
 
 function safeUrl(url) {
@@ -255,6 +288,7 @@ async function normalizeEvents(events) {
     .map((event) => {
       const startTime = new Date(event.start.dateTime).getTime();
       const url = extractUrl(event, settings);
+      const windowName = extractWindowName(event, settings);
 
       return {
         key: `${event.id}:${event.start.dateTime}`,
@@ -262,10 +296,12 @@ async function normalizeEvents(events) {
         title: event.summary || "",
         startTime,
         startIso: event.start.dateTime,
-        url
+        url,
+        windowName
       };
     })
     .filter((event) => Number.isFinite(event.startTime))
+    .filter((event) => Boolean(event.url))
     .sort((a, b) => a.startTime - b.startTime);
 }
 
@@ -345,12 +381,73 @@ async function openEventIfDue(event) {
     return;
   }
 
-  await chrome.tabs.create({
-    url: event.url,
-    active: settings.openActiveTab
-  });
+  const windowId = await getOrCreateTargetWindow(event.windowName || settings.targetWindowName);
+  await chrome.tabs.create({ url: event.url, active: settings.openActiveTab, windowId });
 
   await markEventFired(event);
+}
+
+async function getOrCreateTargetWindow(windowName) {
+  if (!windowName) {
+    const current = await chrome.windows.getCurrent().catch(() => null);
+    return current?.id;
+  }
+
+  const key = `windowName:${windowName}`;
+  const { windowNames = {} } = await chrome.storage.local.get({ windowNames: {} });
+  const knownId = windowNames[key];
+
+  if (knownId) {
+    const existing = await chrome.windows.get(knownId).catch(() => null);
+    if (existing?.id) {
+      return existing.id;
+    }
+  }
+
+  const namedPage = `data:text/html,${encodeURIComponent(`<title>${windowName || "calendar-site-opener"}</title><body style="font-family:system-ui;padding:16px">Window: ${windowName || "default"}</body>`)}`;
+  const created = await chrome.windows.create({ focused: false, url: namedPage });
+  windowNames[key] = created.id;
+  await chrome.storage.local.set({ windowNames });
+  return created.id;
+}
+
+async function listCalendars() {
+  const token = await getAuthToken(false);
+  const response = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!response.ok) throw new Error("カレンダー一覧を取得できませんでした。");
+  const data = await response.json();
+  return { calendars: (data.items || []).map((item) => ({ id: item.id, summary: item.summary || item.id })) };
+}
+
+async function createEvent(input) {
+  const settings = await getSettings();
+  const token = await getAuthToken(true);
+  const start = new Date(input.startLocal);
+  if (!Number.isFinite(start.getTime())) throw new Error("開始日時が不正です。");
+  const end = new Date(start.getTime() + 30 * 60 * 1000);
+  const marker = settings.marker || DEFAULT_SETTINGS.marker;
+  const url = safeUrl(input.url || "");
+  const payload = {
+    summary: `${String(input.title || "新規予定").trim()} ${marker}`.trim(),
+    description: url || "",
+    start: { dateTime: start.toISOString() },
+    end: { dateTime: end.toISOString() }
+  };
+
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(settings.calendarId)}/events`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`予定作成に失敗: ${response.status} ${text}`);
+  }
+
+  return await syncAndScheduleNext(false);
 }
 
 async function markEventFired(event) {

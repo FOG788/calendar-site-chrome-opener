@@ -25,6 +25,14 @@
         <div class="label">次に開く予定</div>
         <div id="nextEvent">未設定</div>
       </section>
+
+      <section class="status-card">
+        <div class="label">予定を追加</div>
+        <input id="newTitle" type="text" placeholder="タイトル [OPEN]" />
+        <input id="newStart" type="datetime-local" />
+        <input id="newUrl" type="url" placeholder="https://example.com" />
+        <button id="createEvent" class="secondary">追加</button>
+      </section>
     </main>
 
     <script src="popup.js"></script>
