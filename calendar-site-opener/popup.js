@@ -99,7 +99,8 @@ function renderState(state) {
 
 function renderNextEvent(event) {
   const url = event.url.length > 90 ? `${event.url.slice(0, 90)}...` : event.url;
-  nextEventEl.textContent = `${event.title}\n${formatDateTime(event.startTime)}\n${url}`;
+  const win = event.windowName ? `\nwindow: ${event.windowName}` : "";
+  nextEventEl.textContent = `${event.title}\n${formatDateTime(event.startTime)}\n${url}${win}`;
 }
 
 function setStatus(text) {

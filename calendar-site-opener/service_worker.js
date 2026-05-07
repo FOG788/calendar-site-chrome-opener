@@ -250,6 +250,21 @@ function extractUrl(event, settings) {
   return safeUrl(match[0].replace(/[),.。]+$/, "")) || (settings.skipNoUrlEvents ? null : settings.defaultUrl);
 }
 
+function extractWindowName(event, settings) {
+  const text = [
+    event.summary || "",
+    event.description || "",
+    event.location || ""
+  ].join("\n");
+
+  const token = text.match(/\[WIN:([^\]\n]+)\]/i) || text.match(/#win:([^\s\n]+)/i);
+  if (!token) {
+    return settings.targetWindowName || "";
+  }
+
+  return String(token[1] || "").trim() || settings.targetWindowName || "";
+}
+
 function safeUrl(url) {
   try {
     const parsed = new URL(String(url).trim());
@@ -273,6 +288,7 @@ async function normalizeEvents(events) {
     .map((event) => {
       const startTime = new Date(event.start.dateTime).getTime();
       const url = extractUrl(event, settings);
+      const windowName = extractWindowName(event, settings);
 
       return {
         key: `${event.id}:${event.start.dateTime}`,
@@ -280,7 +296,8 @@ async function normalizeEvents(events) {
         title: event.summary || "",
         startTime,
         startIso: event.start.dateTime,
-        url
+        url,
+        windowName
       };
     })
     .filter((event) => Number.isFinite(event.startTime))
@@ -364,7 +381,7 @@ async function openEventIfDue(event) {
     return;
   }
 
-  const windowId = await getOrCreateTargetWindow(settings.targetWindowName);
+  const windowId = await getOrCreateTargetWindow(event.windowName || settings.targetWindowName);
   await chrome.tabs.create({ url: event.url, active: settings.openActiveTab, windowId });
 
   await markEventFired(event);
@@ -387,7 +404,8 @@ async function getOrCreateTargetWindow(windowName) {
     }
   }
 
-  const created = await chrome.windows.create({ focused: false });
+  const namedPage = `data:text/html,${encodeURIComponent(`<title>${windowName || "calendar-site-opener"}</title><body style="font-family:system-ui;padding:16px">Window: ${windowName || "default"}</body>`)}`;
+  const created = await chrome.windows.create({ focused: false, url: namedPage });
   windowNames[key] = created.id;
   await chrome.storage.local.set({ windowNames });
   return created.id;
