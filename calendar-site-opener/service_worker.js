@@ -395,7 +395,55 @@ async function openEventIfDue(event) {
   }
 
   const windowId = await getOrCreateTargetWindow(event.windowName || settings.targetWindowName);
-  await chrome.tabs.create({ url: buildOpenUrl(event.url), active: settings.openActiveTab, windowId });
+  const createdTab = await chrome.tabs.create({ url: buildOpenUrl(event.url), active: settings.openActiveTab, windowId });
+
+  if (createdTab?.id) {
+    setTimeout(() => {
+      chrome.scripting.executeScript({
+        target: { tabId: createdTab.id },
+        func: () => {
+          const K = "__yt_loop_on";
+          const T = "__yt_loop_timer";
+          const ID = "__yt_loop_badge";
+          window[K] = !window[K];
+          clearInterval(window[T]);
+          const text = "ループ中";
+          const getBox = () => {
+            const video = document.querySelector("video");
+            if (video) return video.getBoundingClientRect();
+            const player = document.querySelector("#movie_player,.html5-video-player,ytd-player");
+            return player ? player.getBoundingClientRect() : null;
+          };
+          const putBadge = () => {
+            let badge = document.getElementById(ID);
+            if (!badge) {
+              badge = document.createElement("div");
+              badge.id = ID;
+              document.body.appendChild(badge);
+            }
+            if (!window[K]) {
+              badge.remove();
+              return;
+            }
+            const rect = getBox();
+            if (!rect) return;
+            badge.textContent = text;
+            const left = Math.max(8, rect.left + 16);
+            const top = Math.max(8, rect.bottom - 108);
+            badge.style.cssText = `all:initial!important;position:fixed!important;left:${left}px!important;top:${top}px!important;z-index:2147483647!important;padding:7px 11px!important;background:rgba(255,0,0,.9)!important;color:white!important;font-size:28px!important;font-weight:700!important;border-radius:9px!important;pointer-events:none!important;font-family:sans-serif!important;line-height:1!important;display:block!important;`;
+          };
+          const apply = () => {
+            document.querySelectorAll("video").forEach((video) => {
+              video.loop = !!window[K];
+            });
+            putBadge();
+          };
+          apply();
+          if (window[K]) window[T] = setInterval(apply, 500);
+        }
+      }).catch(() => {});
+    }, 10_000);
+  }
 
   await markEventFired(event);
 }
@@ -518,40 +566,7 @@ function buildOpenUrl(rawUrl) {
   }
 
   const parsed = new URL(safe);
-  const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
-
-  if (host === "youtube.com" || host === "m.youtube.com" || host === "youtu.be") {
-    const videoId = extractYouTubeVideoId(parsed);
-    if (videoId) {
-      return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&loop=1&playlist=${encodeURIComponent(videoId)}`;
-    }
-  }
-
   return parsed.href;
-}
-
-function extractYouTubeVideoId(url) {
-  const host = url.hostname.replace(/^www\./i, "").toLowerCase();
-  if (host === "youtu.be") {
-    const id = url.pathname.split("/").filter(Boolean)[0];
-    return id || "";
-  }
-
-  if ((host === "youtube.com" || host === "m.youtube.com") && url.pathname === "/watch") {
-    return url.searchParams.get("v") || "";
-  }
-
-  const shorts = url.pathname.match(/^\/shorts\/([^/?#]+)/i);
-  if (shorts) {
-    return shorts[1];
-  }
-
-  const embed = url.pathname.match(/^\/embed\/([^/?#]+)/i);
-  if (embed) {
-    return embed[1];
-  }
-
-  return "";
 }
 
 async function getCurrentTabUrl() {

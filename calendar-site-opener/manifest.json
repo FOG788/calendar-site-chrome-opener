@@ -9,10 +9,12 @@
     "identity",
     "storage",
     "tabs",
-    "windows"
+    "windows",
+    "scripting"
   ],
   "host_permissions": [
-    "https://www.googleapis.com/*"
+    "https://www.googleapis.com/*",
+    "<all_urls>"
   ],
   "oauth2": {
     "client_id": "398440037614-qs875pae8kfk9a85vtfl5vkpuihkl9g6.apps.googleusercontent.com",
