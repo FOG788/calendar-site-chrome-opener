@@ -38,64 +38,30 @@ chrome.commands.onCommand.addListener((command) => {
   }
 });
 
+const MESSAGE_HANDLERS = {
+  connect: () => connectGoogle(),
+  refresh: () => syncAndScheduleNext(false),
+  getState: () => getState(),
+  saveSettings: (message) => saveSettings(message.settings),
+  disconnect: () => disconnectGoogle(),
+  listCalendars: () => listCalendars(),
+  openCreateEventWindow: (message) => openCreateEventWindow(message?.initialUrl || ""),
+  createEvent: (message) => createEvent(message.event)
+};
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type === "connect") {
-    connectGoogle()
-      .then((payload) => sendResponse({ ok: true, ...payload }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
+  const handler = MESSAGE_HANDLERS[message?.type];
+
+  if (!handler) {
+    return false;
   }
 
-  if (message?.type === "refresh") {
-    syncAndScheduleNext(false)
-      .then((payload) => sendResponse({ ok: true, ...payload }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
+  Promise.resolve()
+    .then(() => handler(message, sender))
+    .then((payload) => sendResponse({ ok: true, ...(payload || {}) }))
+    .catch((error) => sendResponse({ ok: false, error: error.message }));
 
-  if (message?.type === "getState") {
-    getState()
-      .then((payload) => sendResponse({ ok: true, ...payload }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
-
-  if (message?.type === "saveSettings") {
-    saveSettings(message.settings)
-      .then((payload) => sendResponse({ ok: true, ...payload }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
-
-  if (message?.type === "disconnect") {
-    disconnectGoogle()
-      .then(() => sendResponse({ ok: true }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
-
-  if (message?.type === "listCalendars") {
-    listCalendars()
-      .then((payload) => sendResponse({ ok: true, ...payload }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
-
-  if (message?.type === "openCreateEventWindow") {
-    openCreateEventWindow(message?.initialUrl || "")
-      .then(() => sendResponse({ ok: true }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
-
-  if (message?.type === "createEvent") {
-    createEvent(message.event)
-      .then((payload) => sendResponse({ ok: true, ...payload }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
-
-  return false;
+  return true;
 });
 
 async function bootstrap() {
