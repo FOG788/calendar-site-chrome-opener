@@ -5,7 +5,6 @@ const newStartEl = document.getElementById("newStart");
 const newUrlEl = document.getElementById("newUrl");
 const newWindowNameEl = document.getElementById("newWindowName");
 const repeatTypeEl = document.getElementById("repeatType");
-const repeatCountEl = document.getElementById("repeatCount");
 
 initialize();
 
@@ -18,8 +17,7 @@ createEventButton.addEventListener("click", async () => {
       startLocal: newStartEl.value,
       url: newUrlEl.value,
       windowName: newWindowNameEl.value,
-      repeatType: repeatTypeEl.value,
-      repeatCount: repeatCountEl.value
+      repeatType: repeatTypeEl.value
     }
   });
 
@@ -48,11 +46,6 @@ async function initialize() {
 
   setStatus("入力内容を確認して追加してください。");
 
-  repeatTypeEl.addEventListener("change", () => {
-    const isNone = repeatTypeEl.value === "none";
-    repeatCountEl.disabled = isNone;
-  });
-  repeatCountEl.disabled = true;
 }
 
 

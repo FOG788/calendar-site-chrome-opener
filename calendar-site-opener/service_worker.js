@@ -505,7 +505,7 @@ async function createEvent(input) {
     end: { dateTime: end.toISOString(), timeZone }
   };
 
-  const recurrence = buildRecurrence(input.repeatType, input.repeatCount);
+  const recurrence = buildRecurrence(input.repeatType);
   if (recurrence) {
     payload.recurrence = [recurrence];
   }
@@ -526,17 +526,16 @@ async function createEvent(input) {
   return syncResult;
 }
 
-function buildRecurrence(repeatType, repeatCount) {
-  const count = clampInteger(repeatCount, 1, 365, 10);
+function buildRecurrence(repeatType) {
   switch (repeatType) {
     case "daily":
-      return `RRULE:FREQ=DAILY;COUNT=${count}`;
+      return "RRULE:FREQ=DAILY";
     case "weekdays":
-      return `RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=${count}`;
+      return "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
     case "weekly":
-      return `RRULE:FREQ=WEEKLY;COUNT=${count}`;
+      return "RRULE:FREQ=WEEKLY";
     case "monthly":
-      return `RRULE:FREQ=MONTHLY;COUNT=${count}`;
+      return "RRULE:FREQ=MONTHLY";
     default:
       return "";
   }

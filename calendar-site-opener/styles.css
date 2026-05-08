@@ -139,7 +139,11 @@ select {
 
 .event-form-grid {
   display: grid;
-  grid-template-columns: 1fr 120px;
+  grid-template-columns: 1fr;
   gap: 8px;
   margin-top: 8px;
+}
+
+.event-form-card .hint {
+  margin-top: 6px;
 }
