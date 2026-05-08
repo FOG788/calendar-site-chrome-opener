@@ -490,12 +490,24 @@ async function createEvent(input) {
   const end = new Date(start.getTime() + 30 * 60 * 1000);
   const marker = settings.marker || DEFAULT_SETTINGS.marker;
   const url = safeUrl(input.url || "");
+  const title = String(input.title || "新規予定").trim();
+  const windowName = String(input.windowName || "").trim();
+
+  const descriptionLines = [];
+  if (url) descriptionLines.push(url);
+  if (windowName) descriptionLines.push(`[WIN:${windowName}]`);
+
   const payload = {
-    summary: `${String(input.title || "新規予定").trim()} ${marker}`.trim(),
-    description: url || "",
+    summary: `${title} ${marker}`.trim(),
+    description: descriptionLines.join("\n"),
     start: { dateTime: start.toISOString() },
     end: { dateTime: end.toISOString() }
   };
+
+  const recurrence = buildRecurrence(input.repeatType, input.repeatCount);
+  if (recurrence) {
+    payload.recurrence = [recurrence];
+  }
 
   const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(settings.calendarId)}/events`, {
     method: "POST",
@@ -511,6 +523,22 @@ async function createEvent(input) {
   const syncResult = await syncAndScheduleNext(false);
   await chrome.runtime.sendMessage({ type: "eventCreated" }).catch(() => {});
   return syncResult;
+}
+
+function buildRecurrence(repeatType, repeatCount) {
+  const count = clampInteger(repeatCount, 1, 365, 10);
+  switch (repeatType) {
+    case "daily":
+      return `RRULE:FREQ=DAILY;COUNT=${count}`;
+    case "weekdays":
+      return `RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=${count}`;
+    case "weekly":
+      return `RRULE:FREQ=WEEKLY;COUNT=${count}`;
+    case "monthly":
+      return `RRULE:FREQ=MONTHLY;COUNT=${count}`;
+    default:
+      return "";
+  }
 }
 
 async function markEventFired(event) {
@@ -580,8 +608,8 @@ async function getCurrentTabUrl() {
 
 async function openCreateEventWindow(initialUrl = "") {
   const current = await chrome.windows.getCurrent();
-  const width = 480;
-  const height = 420;
+  const width = 540;
+  const height = 560;
   const left = Math.max(0, Math.round(current.left + (current.width - width) / 2));
   const top = Math.max(0, Math.round(current.top + (current.height - height) / 2));
 

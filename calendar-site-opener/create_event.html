@@ -6,13 +6,27 @@
     <title>予定を追加</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body class="event-form-page">
     <main class="event-form-wrap">
       <section class="status-card event-form-card">
         <div class="label">予定を追加</div>
         <input id="newTitle" type="text" placeholder="タイトル [OPEN]" />
         <input id="newStart" type="datetime-local" />
         <input id="newUrl" type="url" placeholder="https://example.com" />
+        <input id="newWindowName" type="text" placeholder="開くウィンドウ名（任意）" />
+
+        <div class="event-form-grid">
+          <select id="repeatType">
+            <option value="none">繰り返しなし</option>
+            <option value="daily">毎日</option>
+            <option value="weekdays">平日</option>
+            <option value="weekly">毎週</option>
+            <option value="monthly">毎月</option>
+          </select>
+          <input id="repeatCount" type="number" min="1" max="365" value="10" />
+        </div>
+        <div class="hint">繰り返しを選んだ場合、回数分の定期予定を作成します。</div>
+
         <button id="createEvent">追加</button>
         <div id="status">読み込み中...</div>
       </section>
