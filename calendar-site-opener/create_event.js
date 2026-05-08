@@ -2,6 +2,7 @@ const statusEl = document.getElementById("status");
 const createEventButton = document.getElementById("createEvent");
 const newTitleEl = document.getElementById("newTitle");
 const newStartEl = document.getElementById("newStart");
+const newEndEl = document.getElementById("newEnd");
 const newUrlEl = document.getElementById("newUrl");
 const newWindowNameEl = document.getElementById("newWindowName");
 const repeatTypeEl = document.getElementById("repeatType");
@@ -15,6 +16,7 @@ createEventButton.addEventListener("click", async () => {
     event: {
       title: newTitleEl.value,
       startLocal: newStartEl.value,
+      endLocal: newEndEl.value,
       url: newUrlEl.value,
       windowName: newWindowNameEl.value,
       repeatType: repeatTypeEl.value
@@ -31,7 +33,10 @@ createEventButton.addEventListener("click", async () => {
 });
 
 async function initialize() {
-  newStartEl.value = toLocalDatetimeValue(new Date());
+  const start = new Date();
+  const end = new Date(start.getTime() + 30 * 60 * 1000);
+  newStartEl.value = toLocalDatetimeValue(start);
+  newEndEl.value = toLocalDatetimeValue(end);
 
   const params = new URLSearchParams(window.location.search);
   const initialUrl = params.get("url");
