@@ -497,11 +497,12 @@ async function createEvent(input) {
   if (url) descriptionLines.push(url);
   if (windowName) descriptionLines.push(`[WIN:${windowName}]`);
 
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const payload = {
     summary: `${title} ${marker}`.trim(),
     description: descriptionLines.join("\n"),
-    start: { dateTime: start.toISOString() },
-    end: { dateTime: end.toISOString() }
+    start: { dateTime: start.toISOString(), timeZone },
+    end: { dateTime: end.toISOString(), timeZone }
   };
 
   const recurrence = buildRecurrence(input.repeatType, input.repeatCount);
