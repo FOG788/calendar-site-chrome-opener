@@ -526,7 +526,10 @@ async function createEvent(input) {
   const token = await getAuthToken(true);
   const start = new Date(input.startLocal);
   if (!Number.isFinite(start.getTime())) throw new Error("開始日時が不正です。");
-  const end = new Date(start.getTime() + 30 * 60 * 1000);
+  const defaultEnd = new Date(start.getTime() + 30 * 60 * 1000);
+  const candidateEnd = input.endLocal ? new Date(input.endLocal) : null;
+  const end = Number.isFinite(candidateEnd?.getTime()) ? candidateEnd : defaultEnd;
+  if (end.getTime() <= start.getTime()) throw new Error("終了日時は開始日時より後にしてください。");
   const marker = settings.marker || DEFAULT_SETTINGS.marker;
   const url = safeUrl(input.url || "");
   const title = String(input.title || "新規予定").trim();
