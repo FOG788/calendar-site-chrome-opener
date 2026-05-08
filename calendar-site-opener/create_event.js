@@ -3,6 +3,9 @@ const createEventButton = document.getElementById("createEvent");
 const newTitleEl = document.getElementById("newTitle");
 const newStartEl = document.getElementById("newStart");
 const newUrlEl = document.getElementById("newUrl");
+const newWindowNameEl = document.getElementById("newWindowName");
+const repeatTypeEl = document.getElementById("repeatType");
+const repeatCountEl = document.getElementById("repeatCount");
 
 initialize();
 
@@ -13,7 +16,10 @@ createEventButton.addEventListener("click", async () => {
     event: {
       title: newTitleEl.value,
       startLocal: newStartEl.value,
-      url: newUrlEl.value
+      url: newUrlEl.value,
+      windowName: newWindowNameEl.value,
+      repeatType: repeatTypeEl.value,
+      repeatCount: repeatCountEl.value
     }
   });
 
@@ -41,7 +47,14 @@ async function initialize() {
   }
 
   setStatus("入力内容を確認して追加してください。");
+
+  repeatTypeEl.addEventListener("change", () => {
+    const isNone = repeatTypeEl.value === "none";
+    repeatCountEl.disabled = isNone;
+  });
+  repeatCountEl.disabled = true;
 }
+
 
 function toLocalDatetimeValue(date) {
   const pad = (v) => String(v).padStart(2, "0");
