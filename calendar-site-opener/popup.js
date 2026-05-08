@@ -4,10 +4,7 @@ const nextEventEl = document.getElementById("nextEvent");
 const connectButton = document.getElementById("connect");
 const refreshButton = document.getElementById("refresh");
 const openOptionsButton = document.getElementById("openOptions");
-const createEventButton = document.getElementById("createEvent");
-const newTitleEl = document.getElementById("newTitle");
-const newStartEl = document.getElementById("newStart");
-const newUrlEl = document.getElementById("newUrl");
+const openCreateEventFormButton = document.getElementById("openCreateEventForm");
 
 connectButton.addEventListener("click", async () => {
   setStatus("接続中...");
@@ -25,24 +22,8 @@ openOptionsButton.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
-createEventButton.addEventListener("click", async () => {
-  setStatus("予定を追加中...");
-  const result = await chrome.runtime.sendMessage({
-    type: "createEvent",
-    event: {
-      title: newTitleEl.value,
-      startLocal: newStartEl.value,
-      url: newUrlEl.value
-    }
-  });
-
-  if (!result.ok) {
-    setStatus(`追加に失敗: ${result.error}`);
-    return;
-  }
-
-  setStatus("予定を追加しました。");
-  await loadState();
+openCreateEventFormButton.addEventListener("click", async () => {
+  await chrome.runtime.sendMessage({ type: "openCreateEventWindow" });
 });
 
 loadState();

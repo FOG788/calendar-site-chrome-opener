@@ -104,3 +104,19 @@ select {
   font-size: 12px;
   opacity: 0.75;
 }
+
+.event-form-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.event-form-card {
+  width: min(440px, 95vw);
+}
+
+.event-form-card input,
+.event-form-card button {
+  margin-top: 8px;
+}
