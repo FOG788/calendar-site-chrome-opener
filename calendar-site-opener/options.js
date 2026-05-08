@@ -1,5 +1,6 @@
 const form = document.getElementById("settingsForm");
 const statusEl = document.getElementById("status");
+const openShortcutsButton = document.getElementById("openShortcuts");
 
 const fields = {
   calendarId: document.getElementById("calendarId"),
@@ -100,3 +101,8 @@ function addCalendarOption(value, label) {
 function setStatus(text) {
   statusEl.textContent = text;
 }
+
+
+openShortcutsButton?.addEventListener("click", async () => {
+  await chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+});

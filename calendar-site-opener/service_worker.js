@@ -32,6 +32,12 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "open-create-event-form") {
+    openCreateEventWindow().catch(saveLastError);
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "connect") {
     connectGoogle()
@@ -71,6 +77,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "listCalendars") {
     listCalendars()
       .then((payload) => sendResponse({ ok: true, ...payload }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "openCreateEventWindow") {
+    openCreateEventWindow()
+      .then(() => sendResponse({ ok: true }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
   }
@@ -382,7 +395,7 @@ async function openEventIfDue(event) {
   }
 
   const windowId = await getOrCreateTargetWindow(event.windowName || settings.targetWindowName);
-  await chrome.tabs.create({ url: event.url, active: settings.openActiveTab, windowId });
+  await chrome.tabs.create({ url: buildOpenUrl(event.url), active: settings.openActiveTab, windowId });
 
   await markEventFired(event);
 }
@@ -492,5 +505,67 @@ async function saveLastError(error) {
       message: error?.message || String(error),
       at: Date.now()
     }
+  });
+}
+
+
+function buildOpenUrl(rawUrl) {
+  const safe = safeUrl(rawUrl);
+  if (!safe) {
+    return rawUrl;
+  }
+
+  const parsed = new URL(safe);
+  const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+
+  if (host === "youtube.com" || host === "m.youtube.com" || host === "youtu.be") {
+    const videoId = extractYouTubeVideoId(parsed);
+    if (videoId) {
+      return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&loop=1&playlist=${encodeURIComponent(videoId)}`;
+    }
+  }
+
+  return parsed.href;
+}
+
+function extractYouTubeVideoId(url) {
+  const host = url.hostname.replace(/^www\./i, "").toLowerCase();
+  if (host === "youtu.be") {
+    const id = url.pathname.split("/").filter(Boolean)[0];
+    return id || "";
+  }
+
+  if ((host === "youtube.com" || host === "m.youtube.com") && url.pathname === "/watch") {
+    return url.searchParams.get("v") || "";
+  }
+
+  const shorts = url.pathname.match(/^\/shorts\/([^/?#]+)/i);
+  if (shorts) {
+    return shorts[1];
+  }
+
+  const embed = url.pathname.match(/^\/embed\/([^/?#]+)/i);
+  if (embed) {
+    return embed[1];
+  }
+
+  return "";
+}
+
+async function openCreateEventWindow() {
+  const current = await chrome.windows.getCurrent();
+  const width = 480;
+  const height = 420;
+  const left = Math.max(0, Math.round(current.left + (current.width - width) / 2));
+  const top = Math.max(0, Math.round(current.top + (current.height - height) / 2));
+
+  await chrome.windows.create({
+    url: chrome.runtime.getURL("create_event.html"),
+    type: "popup",
+    width,
+    height,
+    left,
+    top,
+    focused: true
   });
 }

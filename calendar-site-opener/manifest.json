@@ -5,8 +5,9 @@
   "description": "Open URLs from Google Calendar events in new Chrome tabs.",
   "permissions": [
     "alarms",
-    "storage",
+    "commands",
     "identity",
+    "storage",
     "tabs",
     "windows"
   ],
@@ -27,5 +28,13 @@
     "default_popup": "popup.html",
     "default_title": "Calendar Site Opener"
   },
-  "options_page": "options.html"
+  "options_page": "options.html",
+  "commands": {
+    "open-create-event-form": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y"
+      },
+      "description": "予定追加フォームを開く"
+    }
+  }
 }

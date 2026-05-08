@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>予定を追加</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="event-form-wrap">
+      <section class="status-card event-form-card">
+        <div class="label">予定を追加</div>
+        <input id="newTitle" type="text" placeholder="タイトル [OPEN]" />
+        <input id="newStart" type="datetime-local" />
+        <input id="newUrl" type="url" placeholder="https://example.com" />
+        <button id="createEvent">追加</button>
+        <div id="status">読み込み中...</div>
+      </section>
+    </main>
+    <script src="create_event.js"></script>
+  </body>
+</html>
