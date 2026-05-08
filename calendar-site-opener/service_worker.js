@@ -220,13 +220,17 @@ function extractUrl(event, settings) {
     event.summary || ""
   ].join("\n");
 
-  const match = text.match(/https?:\/\/[^\s<>"']+/i);
+  const matches = text.match(/https?:\/\/[^\s<>"']+/gi) || [];
+  const candidates = matches
+    .map((url) => safeUrl(url.replace(/[),.。]+$/, "")))
+    .filter(Boolean);
 
-  if (!match) {
+  if (!candidates.length) {
     return settings.skipNoUrlEvents ? null : settings.defaultUrl;
   }
 
-  return safeUrl(match[0].replace(/[),.。]+$/, "")) || (settings.skipNoUrlEvents ? null : settings.defaultUrl);
+  const randomIndex = Math.floor(Math.random() * candidates.length);
+  return candidates[randomIndex];
 }
 
 function extractWindowName(event, settings) {
