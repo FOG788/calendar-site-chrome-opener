@@ -23,7 +23,15 @@ openOptionsButton.addEventListener("click", () => {
 });
 
 openCreateEventFormButton.addEventListener("click", async () => {
-  await chrome.runtime.sendMessage({ type: "openCreateEventWindow" });
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const initialUrl = tab?.url && /^https?:/i.test(tab.url) ? tab.url : "";
+  await chrome.runtime.sendMessage({ type: "openCreateEventWindow", initialUrl });
+});
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === "eventCreated") {
+    loadState().catch((error) => setStatus(`失敗: ${error.message}`));
+  }
 });
 
 loadState();

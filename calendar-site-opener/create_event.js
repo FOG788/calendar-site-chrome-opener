@@ -28,10 +28,18 @@ createEventButton.addEventListener("click", async () => {
 
 async function initialize() {
   newStartEl.value = toLocalDatetimeValue(new Date());
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.url && /^https?:/i.test(tab.url)) {
-    newUrlEl.value = tab.url;
+
+  const params = new URLSearchParams(window.location.search);
+  const initialUrl = params.get("url");
+  if (initialUrl && /^https?:/i.test(initialUrl)) {
+    newUrlEl.value = initialUrl;
+  } else {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab?.url && /^https?:/i.test(tab.url)) {
+      newUrlEl.value = tab.url;
+    }
   }
+
   setStatus("入力内容を確認して追加してください。");
 }
 

@@ -82,7 +82,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "openCreateEventWindow") {
-    openCreateEventWindow()
+    openCreateEventWindow(message?.initialUrl || "")
       .then(() => sendResponse({ ok: true }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
@@ -460,7 +460,9 @@ async function createEvent(input) {
     throw new Error(`予定作成に失敗: ${response.status} ${text}`);
   }
 
-  return await syncAndScheduleNext(false);
+  const syncResult = await syncAndScheduleNext(false);
+  await chrome.runtime.sendMessage({ type: "eventCreated" }).catch(() => {});
+  return syncResult;
 }
 
 async function markEventFired(event) {
@@ -552,15 +554,30 @@ function extractYouTubeVideoId(url) {
   return "";
 }
 
-async function openCreateEventWindow() {
+async function getCurrentTabUrl() {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (tab?.url && /^https?:/i.test(tab.url)) {
+    return tab.url;
+  }
+
+  return "";
+}
+
+async function openCreateEventWindow(initialUrl = "") {
   const current = await chrome.windows.getCurrent();
   const width = 480;
   const height = 420;
   const left = Math.max(0, Math.round(current.left + (current.width - width) / 2));
   const top = Math.max(0, Math.round(current.top + (current.height - height) / 2));
 
+  const safeInitialUrl = safeUrl(initialUrl) || (await getCurrentTabUrl()) || "";
+  const createUrl = new URL(chrome.runtime.getURL("create_event.html"));
+  if (safeInitialUrl) {
+    createUrl.searchParams.set("url", safeInitialUrl);
+  }
+
   await chrome.windows.create({
-    url: chrome.runtime.getURL("create_event.html"),
+    url: createUrl.href,
     type: "popup",
     width,
     height,
