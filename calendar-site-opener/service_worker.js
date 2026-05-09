@@ -403,9 +403,11 @@ async function openEventIfDue(event) {
         func: (volume) => {
           const K = "__yt_loop_on";
           const T = "__yt_loop_timer";
+          const VT = "__yt_volume_timer";
           const ID = "__yt_loop_badge";
           window[K] = !window[K];
           clearInterval(window[T]);
+          clearInterval(window[VT]);
           const text = "ループ中";
           const getBox = () => {
             const video = document.querySelector("video");
@@ -433,11 +435,11 @@ async function openEventIfDue(event) {
           };
           const applyYoutubeVolume = () => {
             if (!(typeof volume === "number" && Number.isFinite(volume))) {
-              return;
+              return true;
             }
             const isYoutube = /(^|\.)youtube\.com$/i.test(location.hostname) || /(^|\.)youtu\.be$/i.test(location.hostname);
             if (!isYoutube) {
-              return;
+              return true;
             }
             const normalized = Math.min(1, Math.max(0, volume));
             const ytVolume = Math.round(normalized * 100);
@@ -447,7 +449,19 @@ async function openEventIfDue(event) {
               if (typeof player.unMute === "function") {
                 player.unMute();
               }
+              document.querySelectorAll("video, audio").forEach((media) => {
+                media.volume = normalized;
+              });
+              return true;
             }
+            const medias = document.querySelectorAll("video, audio");
+            if (medias.length) {
+              medias.forEach((media) => {
+                media.volume = normalized;
+              });
+              return true;
+            }
+            return false;
           };
           const apply = () => {
             document.querySelectorAll("video, audio").forEach((media) => {
@@ -457,6 +471,14 @@ async function openEventIfDue(event) {
             putBadge();
           };
           apply();
+          let retryCount = 0;
+          window[VT] = setInterval(() => {
+            const applied = applyYoutubeVolume();
+            retryCount += 1;
+            if (applied || retryCount >= 60) {
+              clearInterval(window[VT]);
+            }
+          }, 500);
           if (window[K]) window[T] = setInterval(apply, 500);
         },
         args: [event.volume]
