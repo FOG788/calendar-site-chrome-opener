@@ -11,7 +11,9 @@ const fields = {
   lookAheadHours: document.getElementById("lookAheadHours"),
   refreshMinutes: document.getElementById("refreshMinutes"),
   missedGraceMinutes: document.getElementById("missedGraceMinutes"),
-  openActiveTab: document.getElementById("openActiveTab")
+  openActiveTab: document.getElementById("openActiveTab"),
+  loopStartDelaySeconds: document.getElementById("loopStartDelaySeconds"),
+  volumeApplyWaitSeconds: document.getElementById("volumeApplyWaitSeconds")
 };
 
 loadSettings();
@@ -29,7 +31,9 @@ form.addEventListener("submit", async (event) => {
     lookAheadHours: fields.lookAheadHours.value,
     refreshMinutes: fields.refreshMinutes.value,
     missedGraceMinutes: fields.missedGraceMinutes.value,
-    openActiveTab: fields.openActiveTab.checked
+    openActiveTab: fields.openActiveTab.checked,
+    loopStartDelaySeconds: fields.loopStartDelaySeconds.value,
+    volumeApplyWaitSeconds: fields.volumeApplyWaitSeconds.value
   };
 
   const result = await chrome.runtime.sendMessage({
@@ -69,6 +73,8 @@ function populate(settings) {
   fields.refreshMinutes.value = settings.refreshMinutes;
   fields.missedGraceMinutes.value = settings.missedGraceMinutes;
   fields.openActiveTab.checked = settings.openActiveTab;
+  fields.loopStartDelaySeconds.value = settings.loopStartDelaySeconds;
+  fields.volumeApplyWaitSeconds.value = settings.volumeApplyWaitSeconds;
 }
 
 async function loadCalendarOptions(selectedId) {
