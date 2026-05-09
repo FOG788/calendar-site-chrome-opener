@@ -7,7 +7,9 @@ const DEFAULT_SETTINGS = {
   lookAheadHours: 72,
   refreshMinutes: 15,
   missedGraceMinutes: 10,
-  openActiveTab: true
+  openActiveTab: true,
+  loopStartDelaySeconds: 10,
+  volumeApplyWaitSeconds: 5
 };
 
 const ALARM_REFRESH = "refresh-calendar-events";
@@ -122,7 +124,9 @@ function normalizeSettings(settings) {
     lookAheadHours: clampInteger(settings.lookAheadHours, 1, 24 * 30, DEFAULT_SETTINGS.lookAheadHours),
     refreshMinutes: clampInteger(settings.refreshMinutes, 1, 24 * 60, DEFAULT_SETTINGS.refreshMinutes),
     missedGraceMinutes: clampInteger(settings.missedGraceMinutes, 0, 24 * 60, DEFAULT_SETTINGS.missedGraceMinutes),
-    openActiveTab: Boolean(settings.openActiveTab)
+    openActiveTab: Boolean(settings.openActiveTab),
+    loopStartDelaySeconds: clampInteger(settings.loopStartDelaySeconds, 1, 10, DEFAULT_SETTINGS.loopStartDelaySeconds),
+    volumeApplyWaitSeconds: clampInteger(settings.volumeApplyWaitSeconds, 1, 10, DEFAULT_SETTINGS.volumeApplyWaitSeconds)
   };
 }
 
@@ -221,11 +225,7 @@ async function fetchCalendarEvents(interactive = false) {
 }
 
 function extractUrl(event, settings) {
-  const text = [
-    event.description || "",
-    event.location || "",
-    event.summary || ""
-  ].join("\n");
+  const text = joinEventText(event, ["description", "location", "summary"]);
 
   const matches = text.match(/https?:\/\/[^\s<>"']+/gi) || [];
   const candidates = matches
@@ -241,11 +241,7 @@ function extractUrl(event, settings) {
 }
 
 function extractWindowName(event, settings) {
-  const text = [
-    event.summary || "",
-    event.description || "",
-    event.location || ""
-  ].join("\n");
+  const text = joinEventText(event, ["summary", "description", "location"]);
 
   const token = text.match(/\[WIN:([^\]\n]+)\]/i) || text.match(/#win:([^\s\n]+)/i);
   if (!token) {
@@ -256,11 +252,7 @@ function extractWindowName(event, settings) {
 }
 
 function extractCloseToken(event) {
-  const text = [
-    event.summary || "",
-    event.description || "",
-    event.location || ""
-  ].join("\n");
+  const text = joinEventText(event, ["summary", "description", "location"]);
 
   const token = text.match(/\[CLOSE:([^\]\n]+)\]/i) || text.match(/#close:([^\s\n]+)/i);
   return token ? String(token[1] || "").trim() : "";
@@ -283,17 +275,26 @@ function safeUrl(url) {
 async function normalizeEvents(events) {
   const settings = await getSettings();
 
-  return events
-    .filter((event) => event.summary?.includes(settings.marker))
-    .filter((event) => event.start?.dateTime)
-    .map((event) => {
+  return events.reduce((result, event) => {
+    if (!event.summary?.includes(settings.marker) || !event.start?.dateTime) {
+      return result;
+    }
+
       const startTime = new Date(event.start.dateTime).getTime();
+      if (!Number.isFinite(startTime)) {
+        return result;
+      }
+
       const url = extractUrl(event, settings);
+      if (!url) {
+        return result;
+      }
+
       const windowName = extractWindowName(event, settings);
       const closeToken = extractCloseToken(event);
       const volume = extractVolume(event);
 
-      return {
+      result.push({
         key: `${event.id}:${event.start.dateTime}`,
         eventId: event.id,
         title: event.summary || "",
@@ -304,11 +305,9 @@ async function normalizeEvents(events) {
         windowName,
         closeToken,
         volume
-      };
-    })
-    .filter((event) => Number.isFinite(event.startTime))
-    .filter((event) => Boolean(event.url))
-    .sort((a, b) => a.startTime - b.startTime);
+      });
+      return result;
+    }, []).sort((a, b) => a.startTime - b.startTime);
 }
 
 async function syncAndScheduleNext(interactive = false) {
@@ -393,7 +392,7 @@ async function openEventIfDue(event) {
 
   if (createdTab?.id) {
     if (Number.isFinite(event.volume) && isYouTubeUrl(event.url)) {
-      applyYouTubeVolumeWhenReady(createdTab.id, event.volume).catch(() => {});
+      applyYouTubeVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds).catch(() => {});
     }
 
     if (Number.isFinite(event.endTime) && event.endTime > Date.now()) {
@@ -405,7 +404,7 @@ async function openEventIfDue(event) {
       chrome.scripting.executeScript({
         target: { tabId: createdTab.id },
         world: "MAIN",
-        func: () => {
+        func: (volume, volumeWaitSeconds) => {
           const K = "__yt_loop_on";
           const T = "__yt_loop_timer";
           const VT = "__yt_volume_timer";
@@ -480,14 +479,16 @@ async function openEventIfDue(event) {
           window[VT] = setInterval(() => {
             const applied = applyYoutubeVolume();
             retryCount += 1;
-            if (applied || retryCount >= 60) {
+            const maxRetries = Math.max(1, Math.floor((volumeWaitSeconds * 1000) / 500));
+            if (applied || retryCount >= maxRetries) {
               clearInterval(window[VT]);
             }
           }, 500);
           if (window[K]) window[T] = setInterval(apply, 500);
-        }
+        },
+        args: [event.volume, settings.volumeApplyWaitSeconds]
       }).catch(() => {});
-    }, 10_000);
+    }, settings.loopStartDelaySeconds * 1000);
   }
 
   await markEventFired(event);
@@ -500,12 +501,13 @@ function isYouTubeUrl(rawUrl) {
   return /(^|\.)youtube\.com$/i.test(hostname) || /(^|\.)youtu\.be$/i.test(hostname);
 }
 
-async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized) {
+async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
   const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
+  const maxAttempts = Math.max(1, Math.floor((waitSeconds * 1000) / 500));
   await chrome.scripting.executeScript({
     target: { tabId },
     world: "MAIN",
-    func: (volumePercent) => {
+    func: (volumePercent, maxTryCount) => {
       let attempts = 0;
       const timer = setInterval(() => {
         attempts += 1;
@@ -516,12 +518,12 @@ async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized) {
           clearInterval(timer);
           return;
         }
-        if (attempts >= 40) {
+        if (attempts >= maxTryCount) {
           clearInterval(timer);
         }
       }, 500);
     },
-    args: [targetVolume]
+    args: [targetVolume, maxAttempts]
   });
 }
 
@@ -537,18 +539,24 @@ async function rememberOpenedTab(event, tabId) {
 async function scheduleNextTabClose() {
   const { openedTabs = {} } = await chrome.storage.local.get({ openedTabs: {} });
   const now = Date.now();
-  const candidates = Object.entries(openedTabs)
-    .map(([eventKey, record]) => ({ eventKey, ...record }))
-    .filter((record) => Number.isFinite(record.closeAt))
-    .sort((a, b) => a.closeAt - b.closeAt);
+  let next = null;
+
+  for (const [eventKey, record] of Object.entries(openedTabs)) {
+    if (!Number.isFinite(record?.closeAt)) {
+      continue;
+    }
+
+    if (!next || record.closeAt < next.closeAt) {
+      next = { eventKey, tabId: record.tabId, closeAt: record.closeAt };
+    }
+  }
 
   await chrome.alarms.clear(ALARM_CLOSE_NEXT);
 
-  if (!candidates.length) {
+  if (!next) {
     return;
   }
 
-  const next = candidates[0];
   if (next.closeAt <= now) {
     await closeEventTab(next.eventKey, next.tabId);
     await scheduleNextTabClose();
@@ -772,11 +780,7 @@ async function openCreateEventWindow(initialUrl = "") {
 }
 
 function extractVolume(event) {
-  const text = [
-    event.summary || "",
-    event.description || "",
-    event.location || ""
-  ].join("\n");
+  const text = joinEventText(event, ["summary", "description", "location"]);
 
   const token = text.match(/\[VOL:(\d{1,3})\]/i) || text.match(/#vol:(\d{1,3})/i);
   if (!token) {
@@ -789,4 +793,8 @@ function extractVolume(event) {
   }
 
   return Math.min(100, Math.max(0, value)) / 100;
+}
+
+function joinEventText(event, keys) {
+  return keys.map((key) => event[key] || "").join("\n");
 }
