@@ -431,13 +431,29 @@ async function openEventIfDue(event) {
             const top = Math.max(8, rect.bottom - 108);
             badge.style.cssText = `all:initial!important;position:fixed!important;left:${left}px!important;top:${top}px!important;z-index:2147483647!important;padding:7px 11px!important;background:rgba(255,0,0,.9)!important;color:white!important;font-size:28px!important;font-weight:700!important;border-radius:9px!important;pointer-events:none!important;font-family:sans-serif!important;line-height:1!important;display:block!important;`;
           };
+          const applyYoutubeVolume = () => {
+            if (!(typeof volume === "number" && Number.isFinite(volume))) {
+              return;
+            }
+            const isYoutube = /(^|\.)youtube\.com$/i.test(location.hostname) || /(^|\.)youtu\.be$/i.test(location.hostname);
+            if (!isYoutube) {
+              return;
+            }
+            const normalized = Math.min(1, Math.max(0, volume));
+            const ytVolume = Math.round(normalized * 100);
+            const player = document.getElementById("movie_player");
+            if (player && typeof player.setVolume === "function") {
+              player.setVolume(ytVolume);
+              if (typeof player.unMute === "function") {
+                player.unMute();
+              }
+            }
+          };
           const apply = () => {
             document.querySelectorAll("video, audio").forEach((media) => {
               media.loop = !!window[K];
-              if (typeof volume === "number" && Number.isFinite(volume)) {
-                media.volume = Math.min(1, Math.max(0, volume));
-              }
             });
+            applyYoutubeVolume();
             putBadge();
           };
           apply();
@@ -716,4 +732,3 @@ function extractVolume(event) {
 
   return Math.min(100, Math.max(0, value)) / 100;
 }
-
