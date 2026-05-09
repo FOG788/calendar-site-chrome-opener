@@ -392,6 +392,10 @@ async function openEventIfDue(event) {
   const createdTab = await chrome.tabs.create({ url: buildOpenUrl(event.url), active: settings.openActiveTab, windowId });
 
   if (createdTab?.id) {
+    if (Number.isFinite(event.volume) && isYouTubeUrl(event.url)) {
+      applyYouTubeVolumeWhenReady(createdTab.id, event.volume).catch(() => {});
+    }
+
     if (Number.isFinite(event.endTime) && event.endTime > Date.now()) {
       await rememberOpenedTab(event, createdTab.id);
       await scheduleNextTabClose();
@@ -401,7 +405,7 @@ async function openEventIfDue(event) {
       chrome.scripting.executeScript({
         target: { tabId: createdTab.id },
         world: "MAIN",
-        func: (volume) => {
+        func: () => {
           const K = "__yt_loop_on";
           const T = "__yt_loop_timer";
           const VT = "__yt_volume_timer";
@@ -481,13 +485,44 @@ async function openEventIfDue(event) {
             }
           }, 500);
           if (window[K]) window[T] = setInterval(apply, 500);
-        },
-        args: [event.volume]
+        }
       }).catch(() => {});
     }, 10_000);
   }
 
   await markEventFired(event);
+}
+
+function isYouTubeUrl(rawUrl) {
+  const safe = safeUrl(rawUrl);
+  if (!safe) return false;
+  const hostname = new URL(safe).hostname;
+  return /(^|\.)youtube\.com$/i.test(hostname) || /(^|\.)youtu\.be$/i.test(hostname);
+}
+
+async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized) {
+  const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: (volumePercent) => {
+      let attempts = 0;
+      const timer = setInterval(() => {
+        attempts += 1;
+        const player = document.getElementById("movie_player");
+        if (player && typeof player.setVolume === "function") {
+          player.setVolume(volumePercent);
+          if (typeof player.unMute === "function") player.unMute();
+          clearInterval(timer);
+          return;
+        }
+        if (attempts >= 40) {
+          clearInterval(timer);
+        }
+      }, 500);
+    },
+    args: [targetVolume]
+  });
 }
 
 async function rememberOpenedTab(event, tabId) {
