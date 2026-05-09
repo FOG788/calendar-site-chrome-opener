@@ -400,6 +400,7 @@ async function openEventIfDue(event) {
     setTimeout(() => {
       chrome.scripting.executeScript({
         target: { tabId: createdTab.id },
+        world: "MAIN",
         func: (volume) => {
           const K = "__yt_loop_on";
           const T = "__yt_loop_timer";
