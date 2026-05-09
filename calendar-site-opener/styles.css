@@ -147,3 +147,7 @@ select {
 .event-form-card .hint {
   margin-top: 6px;
 }
+
+.event-form-checkbox {
+  margin-top: 8px;
+}

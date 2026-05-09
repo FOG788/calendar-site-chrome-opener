@@ -255,6 +255,17 @@ function extractWindowName(event, settings) {
   return String(token[1] || "").trim() || settings.targetWindowName || "";
 }
 
+function extractCloseToken(event) {
+  const text = [
+    event.summary || "",
+    event.description || "",
+    event.location || ""
+  ].join("\n");
+
+  const token = text.match(/\[CLOSE:([^\]\n]+)\]/i) || text.match(/#close:([^\s\n]+)/i);
+  return token ? String(token[1] || "").trim() : "";
+}
+
 function safeUrl(url) {
   try {
     const parsed = new URL(String(url).trim());
@@ -279,6 +290,7 @@ async function normalizeEvents(events) {
       const startTime = new Date(event.start.dateTime).getTime();
       const url = extractUrl(event, settings);
       const windowName = extractWindowName(event, settings);
+      const closeToken = extractCloseToken(event);
 
       return {
         key: `${event.id}:${event.start.dateTime}`,
@@ -286,9 +298,10 @@ async function normalizeEvents(events) {
         title: event.summary || "",
         startTime,
         startIso: event.start.dateTime,
-        endTime: event.end?.dateTime ? new Date(event.end.dateTime).getTime() : null,
+        endTime: closeToken && event.end?.dateTime ? new Date(event.end.dateTime).getTime() : null,
         url,
-        windowName
+        windowName,
+        closeToken
       };
     })
     .filter((event) => Number.isFinite(event.startTime))
@@ -534,10 +547,12 @@ async function createEvent(input) {
   const url = safeUrl(input.url || "");
   const title = String(input.title || "新規予定").trim();
   const windowName = String(input.windowName || "").trim();
+  const closeToken = String(input.closeToken || "").trim();
 
   const descriptionLines = [];
   if (url) descriptionLines.push(url);
   if (windowName) descriptionLines.push(`[WIN:${windowName}]`);
+  if (closeToken) descriptionLines.push(`[CLOSE:${closeToken}]`);
 
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const payload = {
