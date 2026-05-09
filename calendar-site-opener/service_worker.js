@@ -459,6 +459,7 @@ async function openEventIfDue(event) {
             document.querySelectorAll("video, audio").forEach((media) => {
               media.loop = !!window[K];
             });
+            applyYoutubeVolume();
             putBadge();
           };
           apply();
