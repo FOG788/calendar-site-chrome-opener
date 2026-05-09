@@ -5,6 +5,8 @@ const newStartEl = document.getElementById("newStart");
 const newEndEl = document.getElementById("newEnd");
 const newUrlEl = document.getElementById("newUrl");
 const newWindowNameEl = document.getElementById("newWindowName");
+const newCloseTokenEl = document.getElementById("newCloseToken");
+const autoCloseToggleEl = document.getElementById("autoCloseToggle");
 const repeatTypeEl = document.getElementById("repeatType");
 
 initialize();
@@ -19,6 +21,7 @@ createEventButton.addEventListener("click", async () => {
       endLocal: newEndEl.value,
       url: newUrlEl.value,
       windowName: newWindowNameEl.value,
+      closeToken: newCloseTokenEl.value,
       repeatType: repeatTypeEl.value
     }
   });
@@ -50,8 +53,17 @@ async function initialize() {
   }
 
   setStatus("入力内容を確認して追加してください。");
-
+  autoCloseToggleEl.checked = false;
+  newCloseTokenEl.value = "";
 }
+
+autoCloseToggleEl.addEventListener("change", () => {
+  if (autoCloseToggleEl.checked) {
+    newCloseTokenEl.value = "close";
+    return;
+  }
+  newCloseTokenEl.value = "";
+});
 
 
 function toLocalDatetimeValue(date) {
