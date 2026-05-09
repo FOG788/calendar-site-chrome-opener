@@ -449,16 +449,6 @@ async function openEventIfDue(event) {
               if (typeof player.unMute === "function") {
                 player.unMute();
               }
-              document.querySelectorAll("video, audio").forEach((media) => {
-                media.volume = normalized;
-              });
-              return true;
-            }
-            const medias = document.querySelectorAll("video, audio");
-            if (medias.length) {
-              medias.forEach((media) => {
-                media.volume = normalized;
-              });
               return true;
             }
             return false;
