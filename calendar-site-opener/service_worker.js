@@ -291,6 +291,7 @@ async function normalizeEvents(events) {
       const url = extractUrl(event, settings);
       const windowName = extractWindowName(event, settings);
       const closeToken = extractCloseToken(event);
+      const volume = extractVolume(event);
 
       return {
         key: `${event.id}:${event.start.dateTime}`,
@@ -301,7 +302,8 @@ async function normalizeEvents(events) {
         endTime: closeToken && event.end?.dateTime ? new Date(event.end.dateTime).getTime() : null,
         url,
         windowName,
-        closeToken
+        closeToken,
+        volume
       };
     })
     .filter((event) => Number.isFinite(event.startTime))
@@ -398,7 +400,7 @@ async function openEventIfDue(event) {
     setTimeout(() => {
       chrome.scripting.executeScript({
         target: { tabId: createdTab.id },
-        func: () => {
+        func: (volume) => {
           const K = "__yt_loop_on";
           const T = "__yt_loop_timer";
           const ID = "__yt_loop_badge";
@@ -430,14 +432,18 @@ async function openEventIfDue(event) {
             badge.style.cssText = `all:initial!important;position:fixed!important;left:${left}px!important;top:${top}px!important;z-index:2147483647!important;padding:7px 11px!important;background:rgba(255,0,0,.9)!important;color:white!important;font-size:28px!important;font-weight:700!important;border-radius:9px!important;pointer-events:none!important;font-family:sans-serif!important;line-height:1!important;display:block!important;`;
           };
           const apply = () => {
-            document.querySelectorAll("video").forEach((video) => {
-              video.loop = !!window[K];
+            document.querySelectorAll("video, audio").forEach((media) => {
+              media.loop = !!window[K];
+              if (typeof volume === "number" && Number.isFinite(volume)) {
+                media.volume = Math.min(1, Math.max(0, volume));
+              }
             });
             putBadge();
           };
           apply();
           if (window[K]) window[T] = setInterval(apply, 500);
-        }
+        },
+        args: [event.volume]
       }).catch(() => {});
     }, 10_000);
   }
@@ -548,11 +554,13 @@ async function createEvent(input) {
   const title = String(input.title || "新規予定").trim();
   const windowName = String(input.windowName || "").trim();
   const closeToken = String(input.closeToken || "").trim();
+  const volumePercent = clampInteger(input.volumePercent, 0, 100, null);
 
   const descriptionLines = [];
   if (url) descriptionLines.push(url);
   if (windowName) descriptionLines.push(`[WIN:${windowName}]`);
   if (closeToken) descriptionLines.push(`[CLOSE:${closeToken}]`);
+  if (Number.isFinite(volumePercent)) descriptionLines.push(`[VOL:${volumePercent}]`);
 
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const payload = {
@@ -688,3 +696,24 @@ async function openCreateEventWindow(initialUrl = "") {
     focused: true
   });
 }
+
+function extractVolume(event) {
+  const text = [
+    event.summary || "",
+    event.description || "",
+    event.location || ""
+  ].join("\n");
+
+  const token = text.match(/\[VOL:(\d{1,3})\]/i) || text.match(/#vol:(\d{1,3})/i);
+  if (!token) {
+    return null;
+  }
+
+  const value = Number.parseInt(token[1], 10);
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.min(100, Math.max(0, value)) / 100;
+}
+

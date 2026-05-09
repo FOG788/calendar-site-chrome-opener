@@ -6,6 +6,7 @@ const newEndEl = document.getElementById("newEnd");
 const newUrlEl = document.getElementById("newUrl");
 const newWindowNameEl = document.getElementById("newWindowName");
 const newCloseTokenEl = document.getElementById("newCloseToken");
+const newVolumeEl = document.getElementById("newVolume");
 const autoCloseToggleEl = document.getElementById("autoCloseToggle");
 const repeatTypeEl = document.getElementById("repeatType");
 
@@ -22,6 +23,7 @@ createEventButton.addEventListener("click", async () => {
       url: newUrlEl.value,
       windowName: newWindowNameEl.value,
       closeToken: newCloseTokenEl.value,
+      volumePercent: newVolumeEl.value,
       repeatType: repeatTypeEl.value
     }
   });
@@ -55,6 +57,7 @@ async function initialize() {
   setStatus("入力内容を確認して追加してください。");
   autoCloseToggleEl.checked = false;
   newCloseTokenEl.value = "";
+  newVolumeEl.value = "";
 }
 
 autoCloseToggleEl.addEventListener("change", () => {
