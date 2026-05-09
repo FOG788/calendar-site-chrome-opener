@@ -406,6 +406,7 @@ async function openEventIfDue(event) {
           const T = "__yt_loop_timer";
           const VT = "__yt_volume_timer";
           const VL = "__yt_volume_unlock_listener";
+          const VD = "__yt_volume_done";
           const ID = "__yt_loop_badge";
           window[K] = !window[K];
           clearInterval(window[T]);
@@ -436,6 +437,9 @@ async function openEventIfDue(event) {
             badge.style.cssText = `all:initial!important;position:fixed!important;left:${left}px!important;top:${top}px!important;z-index:2147483647!important;padding:7px 11px!important;background:rgba(255,0,0,.9)!important;color:white!important;font-size:28px!important;font-weight:700!important;border-radius:9px!important;pointer-events:none!important;font-family:sans-serif!important;line-height:1!important;display:block!important;`;
           };
           const applyYoutubeVolume = () => {
+            if (window[VD]) {
+              return true;
+            }
             if (!(typeof volume === "number" && Number.isFinite(volume))) {
               return true;
             }
@@ -451,6 +455,7 @@ async function openEventIfDue(event) {
               if (typeof player.unMute === "function") {
                 player.unMute();
               }
+              window[VD] = true;
               return true;
             }
             return false;
