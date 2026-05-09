@@ -400,12 +400,15 @@ async function openEventIfDue(event) {
     setTimeout(() => {
       chrome.scripting.executeScript({
         target: { tabId: createdTab.id },
+        world: "MAIN",
         func: (volume) => {
           const K = "__yt_loop_on";
           const T = "__yt_loop_timer";
+          const VT = "__yt_volume_timer";
           const ID = "__yt_loop_badge";
           window[K] = !window[K];
           clearInterval(window[T]);
+          clearInterval(window[VT]);
           const text = "ループ中";
           const getBox = () => {
             const video = document.querySelector("video");
@@ -431,16 +434,42 @@ async function openEventIfDue(event) {
             const top = Math.max(8, rect.bottom - 108);
             badge.style.cssText = `all:initial!important;position:fixed!important;left:${left}px!important;top:${top}px!important;z-index:2147483647!important;padding:7px 11px!important;background:rgba(255,0,0,.9)!important;color:white!important;font-size:28px!important;font-weight:700!important;border-radius:9px!important;pointer-events:none!important;font-family:sans-serif!important;line-height:1!important;display:block!important;`;
           };
+          const applyYoutubeVolume = () => {
+            if (!(typeof volume === "number" && Number.isFinite(volume))) {
+              return true;
+            }
+            const isYoutube = /(^|\.)youtube\.com$/i.test(location.hostname) || /(^|\.)youtu\.be$/i.test(location.hostname);
+            if (!isYoutube) {
+              return true;
+            }
+            const normalized = Math.min(1, Math.max(0, volume));
+            const ytVolume = Math.round(normalized * 100);
+            const player = document.getElementById("movie_player");
+            if (player && typeof player.setVolume === "function") {
+              player.setVolume(ytVolume);
+              if (typeof player.unMute === "function") {
+                player.unMute();
+              }
+              return true;
+            }
+            return false;
+          };
           const apply = () => {
             document.querySelectorAll("video, audio").forEach((media) => {
               media.loop = !!window[K];
-              if (typeof volume === "number" && Number.isFinite(volume)) {
-                media.volume = Math.min(1, Math.max(0, volume));
-              }
             });
+            applyYoutubeVolume();
             putBadge();
           };
           apply();
+          let retryCount = 0;
+          window[VT] = setInterval(() => {
+            const applied = applyYoutubeVolume();
+            retryCount += 1;
+            if (applied || retryCount >= 60) {
+              clearInterval(window[VT]);
+            }
+          }, 500);
           if (window[K]) window[T] = setInterval(apply, 500);
         },
         args: [event.volume]
@@ -716,4 +745,3 @@ function extractVolume(event) {
 
   return Math.min(100, Math.max(0, value)) / 100;
 }
-
