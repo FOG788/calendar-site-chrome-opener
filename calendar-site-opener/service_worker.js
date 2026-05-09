@@ -405,6 +405,7 @@ async function openEventIfDue(event) {
           const K = "__yt_loop_on";
           const T = "__yt_loop_timer";
           const VT = "__yt_volume_timer";
+          const VL = "__yt_volume_unlock_listener";
           const ID = "__yt_loop_badge";
           window[K] = !window[K];
           clearInterval(window[T]);
@@ -463,6 +464,15 @@ async function openEventIfDue(event) {
           };
           apply();
           let retryCount = 0;
+          if (!window[VL]) {
+            const stopAutoVolume = () => {
+              clearInterval(window[VT]);
+            };
+            ["pointerdown", "keydown", "wheel", "touchstart"].forEach((eventName) => {
+              window.addEventListener(eventName, stopAutoVolume, { passive: true, once: true });
+            });
+            window[VL] = true;
+          }
           window[VT] = setInterval(() => {
             const applied = applyYoutubeVolume();
             retryCount += 1;
