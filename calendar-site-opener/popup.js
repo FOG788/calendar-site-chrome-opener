@@ -1,5 +1,6 @@
 const statusEl = document.getElementById("status");
 const nextEventEl = document.getElementById("nextEvent");
+const nextCloseEl = document.getElementById("nextClose");
 
 const connectButton = document.getElementById("connect");
 const refreshButton = document.getElementById("refresh");
@@ -60,6 +61,8 @@ function renderResult(result, successMessage) {
   } else {
     nextEventEl.textContent = "該当予定なし";
   }
+
+  renderNextClose(result.nextClose);
 }
 
 function renderState(state) {
@@ -84,6 +87,8 @@ function renderState(state) {
   } else {
     nextEventEl.textContent = "該当予定なし";
   }
+
+  renderNextClose(state.nextClose);
 }
 
 function renderNextEvent(event) {
@@ -94,6 +99,15 @@ function renderNextEvent(event) {
 
 function setStatus(text) {
   statusEl.textContent = text;
+}
+
+function renderNextClose(nextClose) {
+  if (!nextClose || !Number.isFinite(nextClose.closeAt)) {
+    nextCloseEl.textContent = "該当予定なし";
+    return;
+  }
+
+  nextCloseEl.textContent = `${formatDateTime(nextClose.closeAt)} に閉じます\n(tabId: ${nextClose.tabId ?? "不明"})`;
 }
 
 function formatDateTime(value) {

@@ -490,28 +490,18 @@ function secondsToRetryCount(seconds, intervalMs) {
 }
 
 async function rememberOpenedTab(event, tabId) {
-  const { openedTabs = {} } = await chrome.storage.local.get({ openedTabs: {} });
+  const openedTabs = await loadOpenedTabs();
   openedTabs[event.key] = {
     tabId,
     closeAt: event.endTime
   };
-  await chrome.storage.local.set({ openedTabs });
+  await saveOpenedTabs(openedTabs);
 }
 
 async function scheduleNextTabClose() {
-  const { openedTabs = {} } = await chrome.storage.local.get({ openedTabs: {} });
+  const openedTabs = await loadOpenedTabs({ pruneClosedTabs: true });
   const now = Date.now();
-  let next = null;
-
-  for (const [eventKey, record] of Object.entries(openedTabs)) {
-    if (!Number.isFinite(record?.closeAt)) {
-      continue;
-    }
-
-    if (!next || record.closeAt < next.closeAt) {
-      next = { eventKey, tabId: record.tabId, closeAt: record.closeAt };
-    }
-  }
+  const next = getNextCloseFromOpenedTabs(openedTabs);
 
   await chrome.alarms.clear(ALARM_CLOSE_NEXT);
 
@@ -528,8 +518,43 @@ async function scheduleNextTabClose() {
   await chrome.alarms.create(ALARM_CLOSE_NEXT, { when: next.closeAt });
 }
 
-async function closeDueEventTabAndReschedule() {
+async function loadOpenedTabs({ pruneClosedTabs = false } = {}) {
   const { openedTabs = {} } = await chrome.storage.local.get({ openedTabs: {} });
+  if (!pruneClosedTabs) {
+    return openedTabs;
+  }
+
+  return await cleanupClosedOpenedTabs(openedTabs);
+}
+
+async function cleanupClosedOpenedTabs(openedTabs) {
+  let dirty = false;
+
+  for (const [eventKey, record] of Object.entries(openedTabs)) {
+    if (!Number.isFinite(record?.tabId)) {
+      continue;
+    }
+
+    const tab = await chrome.tabs.get(record.tabId).catch(() => null);
+    if (!tab?.id) {
+      delete openedTabs[eventKey];
+      dirty = true;
+    }
+  }
+
+  if (dirty) {
+    await saveOpenedTabs(openedTabs);
+  }
+
+  return openedTabs;
+}
+
+async function saveOpenedTabs(openedTabs) {
+  await chrome.storage.local.set({ openedTabs });
+}
+
+async function closeDueEventTabAndReschedule() {
+  const openedTabs = await loadOpenedTabs();
   const now = Date.now();
   const dueEntries = Object.entries(openedTabs).filter(([, record]) => Number.isFinite(record?.closeAt) && record.closeAt <= now);
 
@@ -545,9 +570,9 @@ async function closeEventTab(eventKey, tabId) {
     await chrome.tabs.remove(tabId).catch(() => {});
   }
 
-  const { openedTabs = {} } = await chrome.storage.local.get({ openedTabs: {} });
+  const openedTabs = await loadOpenedTabs();
   delete openedTabs[eventKey];
-  await chrome.storage.local.set({ openedTabs });
+  await saveOpenedTabs(openedTabs);
 }
 
 async function getOrCreateTargetWindow(windowName) {
@@ -668,24 +693,42 @@ async function markEventFired(event) {
 
 async function getState() {
   const settings = await getSettings();
+  const openedTabs = await loadOpenedTabs();
   const result = await chrome.storage.local.get([
     "upcomingEvents",
     "nextEvent",
     "lastSyncAt",
     "lastError",
-    "fired",
-    "openedTabs"
+    "fired"
   ]);
+  const nextClose = getNextCloseFromOpenedTabs(openedTabs);
 
   return {
     settings,
     upcomingEvents: result.upcomingEvents || [],
     nextEvent: result.nextEvent || null,
+    nextClose,
     lastSyncAt: result.lastSyncAt || null,
     lastError: result.lastError || null,
     fired: result.fired || {},
-    openedTabs: result.openedTabs || {}
+    openedTabs
   };
+}
+
+function getNextCloseFromOpenedTabs(openedTabs) {
+  let next = null;
+
+  for (const [eventKey, record] of Object.entries(openedTabs || {})) {
+    if (!Number.isFinite(record?.closeAt)) {
+      continue;
+    }
+
+    if (!next || record.closeAt < next.closeAt) {
+      next = { eventKey, tabId: record.tabId, closeAt: record.closeAt };
+    }
+  }
+
+  return next;
 }
 
 async function saveLastError(error) {
