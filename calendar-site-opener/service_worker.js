@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
 const ALARM_REFRESH = "refresh-calendar-events";
 const ALARM_OPEN_NEXT = "open-next-calendar-site";
 const ALARM_CLOSE_NEXT = "close-next-calendar-site-tab";
+const DEBUG_PREFIX = "[Calendar Site Opener]";
 
 chrome.runtime.onInstalled.addListener(() => {
   bootstrap().catch(saveLastError);
@@ -293,6 +294,7 @@ async function normalizeEvents(events) {
       const windowName = extractWindowName(event, settings);
       const closeToken = extractCloseToken(event);
       const volume = extractVolume(event);
+      debugLog("event normalized", { id: event.id, title: event.summary || "", start: event.start.dateTime, volume, url });
 
       result.push({
         key: `${event.id}:${event.start.dateTime}`,
@@ -389,104 +391,147 @@ async function openEventIfDue(event) {
 
   const windowId = await getOrCreateTargetWindow(event.windowName || settings.targetWindowName);
   const createdTab = await chrome.tabs.create({ url: buildOpenUrl(event.url), active: settings.openActiveTab, windowId });
+  debugLog("tab created", { tabId: createdTab?.id, url: event.url, title: event.title });
 
   if (createdTab?.id) {
-    if (Number.isFinite(event.volume) && isYouTubeUrl(event.url)) {
-      applyYouTubeVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds).catch(() => {});
+    if (Number.isFinite(event.volume)) {
+      debugLog("volume schedule", { tabId: createdTab.id, afterSeconds: settings.volumeApplyWaitSeconds, volume: event.volume });
+      setTimeout(() => {
+        applyVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds).catch((error) => {
+          debugError("volume apply failed", error, { tabId: createdTab.id, url: event.url });
+        });
+      }, settings.volumeApplyWaitSeconds * 1000);
+    } else {
+      debugLog("volume skipped", {
+        tabId: createdTab.id,
+        reason: "volume not configured",
+        url: event.url,
+        volume: event.volume
+      });
     }
+
+    debugLog("loop schedule", { tabId: createdTab.id, afterSeconds: settings.loopStartDelaySeconds });
+    setTimeout(() => {
+      applyLoopToggleInTab(createdTab.id).catch((error) => {
+        debugError("loop apply failed", error, { tabId: createdTab.id, url: event.url });
+      });
+    }, settings.loopStartDelaySeconds * 1000);
 
     if (Number.isFinite(event.endTime) && event.endTime > Date.now()) {
       await rememberOpenedTab(event, createdTab.id);
       await scheduleNextTabClose();
     }
-
-    setTimeout(() => {
-      chrome.scripting.executeScript({
-        target: { tabId: createdTab.id },
-        world: "MAIN",
-        func: (volume, volumeWaitSeconds) => {
-          const K = "__yt_loop_on";
-          const T = "__yt_loop_timer";
-          const ID = "__yt_loop_badge";
-          window[K] = !window[K];
-          clearInterval(window[T]);
-          const text = "ループ中";
-          const getBox = () => {
-            const video = document.querySelector("video");
-            if (video) return video.getBoundingClientRect();
-            const player = document.querySelector("#movie_player,.html5-video-player,ytd-player");
-            return player ? player.getBoundingClientRect() : null;
-          };
-          const putBadge = () => {
-            let badge = document.getElementById(ID);
-            if (!badge) {
-              badge = document.createElement("div");
-              badge.id = ID;
-              document.body.appendChild(badge);
-            }
-            if (!window[K]) {
-              badge.remove();
-              return;
-            }
-            const rect = getBox();
-            if (!rect) return;
-            badge.textContent = text;
-            const left = Math.max(8, rect.left + 16);
-            const top = Math.max(8, rect.bottom - 108);
-            badge.style.cssText = `all:initial!important;position:fixed!important;left:${left}px!important;top:${top}px!important;z-index:2147483647!important;padding:7px 11px!important;background:rgba(255,0,0,.9)!important;color:white!important;font-size:28px!important;font-weight:700!important;border-radius:9px!important;pointer-events:none!important;font-family:sans-serif!important;line-height:1!important;display:block!important;`;
-          };
-          const apply = () => {
-            document.querySelectorAll("video, audio").forEach((media) => {
-              media.loop = !!window[K];
-            });
-            putBadge();
-          };
-          apply();
-          if (window[K]) window[T] = setInterval(apply, 500);
-        },
-        args: [event.volume, settings.volumeApplyWaitSeconds]
-      }).catch(() => {});
-    }, settings.loopStartDelaySeconds * 1000);
   }
 
   await markEventFired(event);
 }
 
-function isYouTubeUrl(rawUrl) {
-  const safe = safeUrl(rawUrl);
-  if (!safe) return false;
-  const hostname = new URL(safe).hostname;
-  return /(^|\.)youtube\.com$/i.test(hostname) || /(^|\.)youtu\.be$/i.test(hostname);
-}
 
-async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
-  const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
-  const maxAttempts = secondsToRetryCount(waitSeconds, 500);
+async function applyLoopToggleInTab(tabId) {
+  debugLog("loop apply start", { tabId });
   await chrome.scripting.executeScript({
     target: { tabId },
     world: "MAIN",
-    func: (volumePercent, maxTryCount) => {
-      let attempts = 0;
-      const timer = setInterval(() => {
-        attempts += 1;
+    func: () => {
+      const K = "__yt_loop_on";
+      const T = "__yt_loop_timer";
+      const ID = "__yt_loop_badge";
+      console.log("[Calendar Site Opener][content] loop script start");
+      window[K] = true;
+      clearInterval(window[T]);
+      const text = "ループ中";
+      const getBox = () => {
+        const video = document.querySelector("video");
+        if (video) return video.getBoundingClientRect();
+        const player = document.querySelector("#movie_player,.html5-video-player,ytd-player");
+        return player ? player.getBoundingClientRect() : null;
+      };
+      const putBadge = () => {
+        let badge = document.getElementById(ID);
+        if (!badge) {
+          badge = document.createElement("div");
+          badge.id = ID;
+          document.body.appendChild(badge);
+        }
+        if (!window[K]) {
+          badge.remove();
+          return;
+        }
+        const rect = getBox();
+        if (!rect) return;
+        badge.textContent = text;
+        const left = Math.max(8, rect.left + 16);
+        const top = Math.max(8, rect.bottom - 108);
+        badge.style.cssText = `all:initial!important;position:fixed!important;left:${left}px!important;top:${top}px!important;z-index:2147483647!important;padding:7px 11px!important;background:rgba(255,0,0,.9)!important;color:white!important;font-size:28px!important;font-weight:700!important;border-radius:9px!important;pointer-events:none!important;font-family:sans-serif!important;line-height:1!important;display:block!important;`;
+      };
+      const apply = () => {
+        document.querySelectorAll("video, audio").forEach((media) => {
+          media.loop = !!window[K];
+        });
+        putBadge();
+      };
+      apply();
+      console.log("[Calendar Site Opener][content] loop enabled");
+      if (window[K]) window[T] = setInterval(apply, 500);
+    }
+  });
+  debugLog("loop apply done", { tabId });
+}
+
+async function applyVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
+  const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
+  const delayMs = Math.max(0, Number(waitSeconds || 0) * 1000);
+  debugLog("volume apply start", { tabId, targetVolume, delayMs });
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: (volumePercent, firstDelayMs) => {
+      console.log("[Calendar Site Opener][content] volume script start", { volumePercent, firstDelayMs });
+      const applyOnce = () => {
         const player = document.getElementById("movie_player");
         if (player && typeof player.setVolume === "function") {
           player.setVolume(volumePercent);
           if (typeof player.unMute === "function") player.unMute();
-          clearInterval(timer);
+          console.log("[Calendar Site Opener][content] volume applied by movie_player", { volumePercent });
           return;
         }
-        if (attempts >= maxTryCount) {
-          clearInterval(timer);
+
+        const media = document.querySelector("video, audio");
+        if (media) {
+          media.volume = Math.min(1, Math.max(0, volumePercent / 100));
+          if (volumePercent > 0) {
+            media.muted = false;
+          }
+          console.log("[Calendar Site Opener][content] volume applied by media element", { volumePercent });
+          return;
         }
-      }, 500);
+
+        console.log("[Calendar Site Opener][content] volume skipped (player/media not ready)");
+      };
+
+      setTimeout(applyOnce, firstDelayMs);
+      setTimeout(applyOnce, firstDelayMs + 1000);
+      setTimeout(applyOnce, firstDelayMs + 2000);
     },
-    args: [targetVolume, maxAttempts]
+    args: [targetVolume, delayMs]
   });
+  debugLog("volume apply done", { tabId, targetVolume });
 }
 
-function secondsToRetryCount(seconds, intervalMs) {
-  return Math.max(1, Math.floor((seconds * 1000) / intervalMs));
+function debugLog(message, detail = null) {
+  if (detail) {
+    console.log(`${DEBUG_PREFIX} ${message}`, detail);
+    return;
+  }
+  console.log(`${DEBUG_PREFIX} ${message}`);
+}
+
+function debugError(message, error, detail = null) {
+  console.error(`${DEBUG_PREFIX} ${message}`, {
+    error: error?.message || String(error),
+    ...(detail || {})
+  });
 }
 
 async function rememberOpenedTab(event, tabId) {

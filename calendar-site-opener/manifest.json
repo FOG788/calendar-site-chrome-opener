@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Calendar Site Opener",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Open URLs from Google Calendar events in new Chrome tabs.",
   "permissions": [
     "alarms",

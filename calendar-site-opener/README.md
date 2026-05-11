@@ -76,3 +76,29 @@ Chrome が閉じている、PC がスリープしている、ネット接続が�
 Chrome API には OS レベルの「ウィンドウ名」を直接設定する機能がないため、この拡張は内部ラベル（`WIN:...`）でウィンドウを管理します。
 
 自分用ならこのまま開発できます。公開配布する場合は、Google OAuth の審査や Chrome Web Store の審査を考慮してください。
+
+## 音量変更テスト用ブックマークレット
+
+拡張機能を通さず、まずページ側で音量変更が効くかを確認したいときに使います。
+
+1. ブックマークを新規作成
+2. URL欄に下記をそのまま貼り付け
+3. YouTube を開いた状態で実行
+
+```text
+javascript:(()=>{const volumePercent=30;const apply=()=>{const player=document.getElementById('movie_player');if(player&&typeof player.setVolume==='function'){player.setVolume(volumePercent);if(volumePercent>0&&typeof player.unMute==='function')player.unMute();console.log('[CSO] set by movie_player',volumePercent);return true;}const media=document.querySelector('video,audio');if(media){media.volume=Math.min(1,Math.max(0,volumePercent/100));if(volumePercent>0)media.muted=false;console.log('[CSO] set by media element',volumePercent);return true;}console.log('[CSO] no player/media found');return false;};setTimeout(apply,3000);setTimeout(apply,4000);setTimeout(apply,5000);})();
+```
+
+- `volumePercent=30` を好きな値（0-100）に変えてください。
+- 3秒後に1回目を実行し、保険でさらに2回実行します。
+
+## トラブルシューティング（Service worker registration failed / Status code: 15）
+
+`Uncaught SyntaxError: missing ) after argument list` が出た場合は、拡張機能が古い `service_worker.js` を読み込んでいる可能性があります。
+
+1. `chrome://extensions` で当該拡張機能の「エラーをクリア」
+2. 「更新」または「再読み込み」を押す
+3. それでも直らない場合は一度拡張機能を削除して同じフォルダを再読み込み
+4. ローカルで構文確認: `node --check service_worker.js`
+
+`Status code: 15` は service worker の構文エラー時にも表示されます。
