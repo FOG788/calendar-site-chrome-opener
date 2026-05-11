@@ -404,7 +404,7 @@ async function openEventIfDue(event) {
       chrome.scripting.executeScript({
         target: { tabId: createdTab.id },
         world: "MAIN",
-        func: (volume, volumeWaitSeconds) => {
+        func: () => {
           const K = "__yt_loop_on";
           const T = "__yt_loop_timer";
           const ID = "__yt_loop_badge";
@@ -451,9 +451,17 @@ async function openEventIfDue(event) {
   await markEventFired(event);
 }
 
-async function applyVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
+
+function isYouTubeUrl(rawUrl) {
+  const safe = safeUrl(rawUrl);
+  if (!safe) return false;
+  const hostname = new URL(safe).hostname;
+  return /(^|\.)youtube\.com$/i.test(hostname) || /(^|\.)youtu\.be$/i.test(hostname);
+}
+
+async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
   const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
-  const delayMs = Math.max(0, Number(waitSeconds || 0) * 1000);
+  const maxAttempts = secondsToRetryCount(waitSeconds, 500);
 
   await chrome.scripting.executeScript({
     target: { tabId },
