@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
 const ALARM_REFRESH = "refresh-calendar-events";
 const ALARM_OPEN_NEXT = "open-next-calendar-site";
 const ALARM_CLOSE_NEXT = "close-next-calendar-site-tab";
+const DEBUG_PREFIX = "[Calendar Site Opener]";
 
 chrome.runtime.onInstalled.addListener(() => {
   bootstrap().catch(saveLastError);
@@ -389,67 +390,89 @@ async function openEventIfDue(event) {
 
   const windowId = await getOrCreateTargetWindow(event.windowName || settings.targetWindowName);
   const createdTab = await chrome.tabs.create({ url: buildOpenUrl(event.url), active: settings.openActiveTab, windowId });
+  debugLog("tab created", { tabId: createdTab?.id, url: event.url, title: event.title });
 
   if (createdTab?.id) {
     if (Number.isFinite(event.volume) && isYouTubeUrl(event.url)) {
-      applyYouTubeVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds).catch(() => {});
+      debugLog("volume schedule", { tabId: createdTab.id, afterSeconds: settings.volumeApplyWaitSeconds, volume: event.volume });
+      setTimeout(() => {
+        applyYouTubeVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds).catch((error) => {
+          debugError("volume apply failed", error, { tabId: createdTab.id, url: event.url });
+        });
+      }, settings.volumeApplyWaitSeconds * 1000);
+    } else {
+      debugLog("volume skipped", {
+        tabId: createdTab.id,
+        reason: Number.isFinite(event.volume) ? "url is not youtube" : "volume not configured",
+        url: event.url,
+        volume: event.volume
+      });
     }
+
+    debugLog("loop schedule", { tabId: createdTab.id, afterSeconds: settings.loopStartDelaySeconds });
+    setTimeout(() => {
+      applyLoopToggleInTab(createdTab.id).catch((error) => {
+        debugError("loop apply failed", error, { tabId: createdTab.id, url: event.url });
+      });
+    }, settings.loopStartDelaySeconds * 1000);
 
     if (Number.isFinite(event.endTime) && event.endTime > Date.now()) {
       await rememberOpenedTab(event, createdTab.id);
       await scheduleNextTabClose();
     }
-
-    setTimeout(() => {
-      chrome.scripting.executeScript({
-        target: { tabId: createdTab.id },
-        world: "MAIN",
-        func: (volume, volumeWaitSeconds) => {
-          const K = "__yt_loop_on";
-          const T = "__yt_loop_timer";
-          const ID = "__yt_loop_badge";
-          window[K] = !window[K];
-          clearInterval(window[T]);
-          const text = "ループ中";
-          const getBox = () => {
-            const video = document.querySelector("video");
-            if (video) return video.getBoundingClientRect();
-            const player = document.querySelector("#movie_player,.html5-video-player,ytd-player");
-            return player ? player.getBoundingClientRect() : null;
-          };
-          const putBadge = () => {
-            let badge = document.getElementById(ID);
-            if (!badge) {
-              badge = document.createElement("div");
-              badge.id = ID;
-              document.body.appendChild(badge);
-            }
-            if (!window[K]) {
-              badge.remove();
-              return;
-            }
-            const rect = getBox();
-            if (!rect) return;
-            badge.textContent = text;
-            const left = Math.max(8, rect.left + 16);
-            const top = Math.max(8, rect.bottom - 108);
-            badge.style.cssText = `all:initial!important;position:fixed!important;left:${left}px!important;top:${top}px!important;z-index:2147483647!important;padding:7px 11px!important;background:rgba(255,0,0,.9)!important;color:white!important;font-size:28px!important;font-weight:700!important;border-radius:9px!important;pointer-events:none!important;font-family:sans-serif!important;line-height:1!important;display:block!important;`;
-          };
-          const apply = () => {
-            document.querySelectorAll("video, audio").forEach((media) => {
-              media.loop = !!window[K];
-            });
-            putBadge();
-          };
-          apply();
-          if (window[K]) window[T] = setInterval(apply, 500);
-        },
-        args: [event.volume, settings.volumeApplyWaitSeconds]
-      }).catch(() => {});
-    }, settings.loopStartDelaySeconds * 1000);
   }
 
   await markEventFired(event);
+}
+
+
+async function applyLoopToggleInTab(tabId) {
+  debugLog("loop apply start", { tabId });
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: () => {
+      const K = "__yt_loop_on";
+      const T = "__yt_loop_timer";
+      const ID = "__yt_loop_badge";
+      window[K] = !window[K];
+      clearInterval(window[T]);
+      const text = "ループ中";
+      const getBox = () => {
+        const video = document.querySelector("video");
+        if (video) return video.getBoundingClientRect();
+        const player = document.querySelector("#movie_player,.html5-video-player,ytd-player");
+        return player ? player.getBoundingClientRect() : null;
+      };
+      const putBadge = () => {
+        let badge = document.getElementById(ID);
+        if (!badge) {
+          badge = document.createElement("div");
+          badge.id = ID;
+          document.body.appendChild(badge);
+        }
+        if (!window[K]) {
+          badge.remove();
+          return;
+        }
+        const rect = getBox();
+        if (!rect) return;
+        badge.textContent = text;
+        const left = Math.max(8, rect.left + 16);
+        const top = Math.max(8, rect.bottom - 108);
+        badge.style.cssText = `all:initial!important;position:fixed!important;left:${left}px!important;top:${top}px!important;z-index:2147483647!important;padding:7px 11px!important;background:rgba(255,0,0,.9)!important;color:white!important;font-size:28px!important;font-weight:700!important;border-radius:9px!important;pointer-events:none!important;font-family:sans-serif!important;line-height:1!important;display:block!important;`;
+      };
+      const apply = () => {
+        document.querySelectorAll("video, audio").forEach((media) => {
+          media.loop = !!window[K];
+        });
+        putBadge();
+      };
+      apply();
+      if (window[K]) window[T] = setInterval(apply, 500);
+    }
+  });
+  debugLog("loop apply done", { tabId });
 }
 
 function isYouTubeUrl(rawUrl) {
@@ -462,10 +485,13 @@ function isYouTubeUrl(rawUrl) {
 async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
   const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
   const maxAttempts = secondsToRetryCount(waitSeconds, 500);
+  debugLog("volume apply start", { tabId, targetVolume, maxAttempts });
+
   await chrome.scripting.executeScript({
     target: { tabId },
     world: "MAIN",
     func: (volumePercent, maxTryCount) => {
+      console.log("[Calendar Site Opener][content] volume script start", { volumePercent, maxTryCount });
       let attempts = 0;
       const timer = setInterval(() => {
         attempts += 1;
@@ -473,15 +499,33 @@ async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized, waitSeconds)
         if (player && typeof player.setVolume === "function") {
           player.setVolume(volumePercent);
           if (typeof player.unMute === "function") player.unMute();
+          console.log("[Calendar Site Opener][content] volume applied", { attempts, volumePercent });
           clearInterval(timer);
           return;
         }
         if (attempts >= maxTryCount) {
+          console.log("[Calendar Site Opener][content] volume skipped (player not ready)", { attempts, maxTryCount });
           clearInterval(timer);
         }
       }, 500);
     },
     args: [targetVolume, maxAttempts]
+  });
+  debugLog("volume apply done", { tabId, targetVolume });
+}
+
+function debugLog(message, detail = null) {
+  if (detail) {
+    console.log(`${DEBUG_PREFIX} ${message}`, detail);
+    return;
+  }
+  console.log(`${DEBUG_PREFIX} ${message}`);
+}
+
+function debugError(message, error, detail = null) {
+  console.error(`${DEBUG_PREFIX} ${message}`, {
+    error: error?.message || String(error),
+    ...(detail || {})
   });
 }
 
