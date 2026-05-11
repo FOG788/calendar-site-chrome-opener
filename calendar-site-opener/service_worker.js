@@ -391,8 +391,11 @@ async function openEventIfDue(event) {
   const createdTab = await chrome.tabs.create({ url: buildOpenUrl(event.url), active: settings.openActiveTab, windowId });
 
   if (createdTab?.id) {
-    if (Number.isFinite(event.volume) && isYouTubeUrl(event.url)) {
-      applyYouTubeVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds).catch(() => {});
+    if (Number.isFinite(event.volume)) {
+      waitForTabLoadComplete(createdTab.id, 15000)
+        .then(() => applyVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds))
+        .catch(() => applyVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds))
+        .catch(() => {});
     }
 
     if (Number.isFinite(event.endTime) && event.endTime > Date.now()) {
@@ -444,7 +447,6 @@ async function openEventIfDue(event) {
           apply();
           if (window[K]) window[T] = setInterval(apply, 500);
         },
-        args: [event.volume, settings.volumeApplyWaitSeconds]
       }).catch(() => {});
     }, settings.loopStartDelaySeconds * 1000);
   }
@@ -452,41 +454,63 @@ async function openEventIfDue(event) {
   await markEventFired(event);
 }
 
-function isYouTubeUrl(rawUrl) {
-  const safe = safeUrl(rawUrl);
-  if (!safe) return false;
-  const hostname = new URL(safe).hostname;
-  return /(^|\.)youtube\.com$/i.test(hostname) || /(^|\.)youtu\.be$/i.test(hostname);
-}
 
-async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
-  const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
-  const maxAttempts = secondsToRetryCount(waitSeconds, 500);
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    world: "MAIN",
-    func: (volumePercent, maxTryCount) => {
-      let attempts = 0;
-      const timer = setInterval(() => {
-        attempts += 1;
-        const player = document.getElementById("movie_player");
-        if (player && typeof player.setVolume === "function") {
-          player.setVolume(volumePercent);
-          if (typeof player.unMute === "function") player.unMute();
-          clearInterval(timer);
-          return;
-        }
-        if (attempts >= maxTryCount) {
-          clearInterval(timer);
-        }
-      }, 500);
-    },
-    args: [targetVolume, maxAttempts]
+function waitForTabLoadComplete(tabId, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const done = (ok) => {
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      clearTimeout(timer);
+      ok ? resolve() : reject(new Error("tab load wait timeout"));
+    };
+
+    const onUpdated = (updatedTabId, info) => {
+      if (updatedTabId !== tabId) return;
+      if (info.status === "complete") done(true);
+    };
+
+    const timer = setTimeout(() => done(false), timeoutMs);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+
+    chrome.tabs.get(tabId, (tab) => {
+      if (chrome.runtime.lastError) return;
+      if (tab?.status === "complete") done(true);
+    });
   });
 }
 
-function secondsToRetryCount(seconds, intervalMs) {
-  return Math.max(1, Math.floor((seconds * 1000) / intervalMs));
+async function applyVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
+  const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
+  const delayMs = Math.max(0, Number(waitSeconds || 0) * 1000);
+
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: (volumePercent, firstDelayMs) => {
+      const applyOnce = () => {
+        const player = document.getElementById("movie_player");
+        if (player && typeof player.setVolume === "function") {
+          player.setVolume(volumePercent);
+          if (volumePercent > 0 && typeof player.unMute === "function") {
+            player.unMute();
+          }
+          return;
+        }
+
+        const media = document.querySelector("video, audio");
+        if (media) {
+          media.volume = Math.min(1, Math.max(0, volumePercent / 100));
+          if (volumePercent > 0) {
+            media.muted = false;
+          }
+        }
+      };
+
+      setTimeout(applyOnce, firstDelayMs);
+      setTimeout(applyOnce, firstDelayMs + 1000);
+      setTimeout(applyOnce, firstDelayMs + 2000);
+    },
+    args: [targetVolume, delayMs]
+  });
 }
 
 async function rememberOpenedTab(event, tabId) {
