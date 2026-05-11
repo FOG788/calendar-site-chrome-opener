@@ -529,6 +529,13 @@ function debugError(message, error, detail = null) {
   });
 }
 
+function debugError(message, error, detail = null) {
+  console.error(`${DEBUG_PREFIX} ${message}`, {
+    error: error?.message || String(error),
+    ...(detail || {})
+  });
+}
+
 async function rememberOpenedTab(event, tabId) {
   const openedTabs = await loadOpenedTabs();
   openedTabs[event.key] = {
