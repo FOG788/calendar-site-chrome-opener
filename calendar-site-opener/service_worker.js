@@ -444,7 +444,6 @@ async function openEventIfDue(event) {
           apply();
           if (window[K]) window[T] = setInterval(apply, 500);
         },
-        args: [event.volume, settings.volumeApplyWaitSeconds]
       }).catch(() => {});
     }, settings.loopStartDelaySeconds * 1000);
   }
@@ -461,32 +460,37 @@ function isYouTubeUrl(rawUrl) {
 
 async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
   const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
-  const maxAttempts = secondsToRetryCount(waitSeconds, 500);
+  const delayMs = Math.max(0, Number(waitSeconds || 0) * 1000);
+
   await chrome.scripting.executeScript({
     target: { tabId },
     world: "MAIN",
-    func: (volumePercent, maxTryCount) => {
-      let attempts = 0;
-      const timer = setInterval(() => {
-        attempts += 1;
+    func: (volumePercent, firstDelayMs) => {
+      const applyOnce = () => {
         const player = document.getElementById("movie_player");
         if (player && typeof player.setVolume === "function") {
           player.setVolume(volumePercent);
-          if (typeof player.unMute === "function") player.unMute();
-          clearInterval(timer);
+          if (volumePercent > 0 && typeof player.unMute === "function") {
+            player.unMute();
+          }
           return;
         }
-        if (attempts >= maxTryCount) {
-          clearInterval(timer);
-        }
-      }, 500);
-    },
-    args: [targetVolume, maxAttempts]
-  });
-}
 
-function secondsToRetryCount(seconds, intervalMs) {
-  return Math.max(1, Math.floor((seconds * 1000) / intervalMs));
+        const media = document.querySelector("video, audio");
+        if (media) {
+          media.volume = Math.min(1, Math.max(0, volumePercent / 100));
+          if (volumePercent > 0) {
+            media.muted = false;
+          }
+        }
+      };
+
+      setTimeout(applyOnce, firstDelayMs);
+      setTimeout(applyOnce, firstDelayMs + 1000);
+      setTimeout(applyOnce, firstDelayMs + 2000);
+    },
+    args: [targetVolume, delayMs]
+  });
 }
 
 async function rememberOpenedTab(event, tabId) {
