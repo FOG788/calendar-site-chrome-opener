@@ -527,6 +527,22 @@ function debugError(message, error, detail = null) {
     error: error?.message || String(error),
     ...(detail || {})
   });
+  debugLog("volume apply done", { tabId, targetVolume });
+}
+
+function debugLog(message, detail = null) {
+  if (detail) {
+    console.log(`${DEBUG_PREFIX} ${message}`, detail);
+    return;
+  }
+  console.log(`${DEBUG_PREFIX} ${message}`);
+}
+
+function debugError(message, error, detail = null) {
+  console.error(`${DEBUG_PREFIX} ${message}`, {
+    error: error?.message || String(error),
+    ...(detail || {})
+  });
 }
 
 function debugError(message, error, detail = null) {
