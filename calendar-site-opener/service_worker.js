@@ -507,9 +507,13 @@ async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized, waitSeconds)
           console.log("[Calendar Site Opener][content] volume skipped (player not ready)", { attempts, maxTryCount });
           clearInterval(timer);
         }
-      }, 500);
+      };
+
+      setTimeout(applyOnce, firstDelayMs);
+      setTimeout(applyOnce, firstDelayMs + 1000);
+      setTimeout(applyOnce, firstDelayMs + 2000);
     },
-    args: [targetVolume, maxAttempts]
+    args: [targetVolume, delayMs]
   });
   debugLog("volume apply done", { tabId, targetVolume });
 }
@@ -527,10 +531,6 @@ function debugError(message, error, detail = null) {
     error: error?.message || String(error),
     ...(detail || {})
   });
-}
-
-function secondsToRetryCount(seconds, intervalMs) {
-  return Math.max(1, Math.floor((seconds * 1000) / intervalMs));
 }
 
 async function rememberOpenedTab(event, tabId) {
