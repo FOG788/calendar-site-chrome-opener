@@ -480,29 +480,34 @@ async function applyLoopToggleInTab(tabId) {
 
 async function applyVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
   const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
-  const maxAttempts = secondsToRetryCount(waitSeconds, 500);
-  debugLog("volume apply start", { tabId, targetVolume, maxAttempts });
+  const delayMs = Math.max(0, Number(waitSeconds || 0) * 1000);
+  debugLog("volume apply start", { tabId, targetVolume, delayMs });
 
   await chrome.scripting.executeScript({
     target: { tabId },
     world: "MAIN",
-    func: (volumePercent, maxTryCount) => {
-      console.log("[Calendar Site Opener][content] volume script start", { volumePercent, maxTryCount });
-      let attempts = 0;
-      const timer = setInterval(() => {
-        attempts += 1;
+    func: (volumePercent, firstDelayMs) => {
+      console.log("[Calendar Site Opener][content] volume script start", { volumePercent, firstDelayMs });
+      const applyOnce = () => {
         const player = document.getElementById("movie_player");
         if (player && typeof player.setVolume === "function") {
           player.setVolume(volumePercent);
           if (typeof player.unMute === "function") player.unMute();
-          console.log("[Calendar Site Opener][content] volume applied", { attempts, volumePercent });
-          clearInterval(timer);
+          console.log("[Calendar Site Opener][content] volume applied by movie_player", { volumePercent });
           return;
         }
-        if (attempts >= maxTryCount) {
-          console.log("[Calendar Site Opener][content] volume skipped (player not ready)", { attempts, maxTryCount });
-          clearInterval(timer);
+
+        const media = document.querySelector("video, audio");
+        if (media) {
+          media.volume = Math.min(1, Math.max(0, volumePercent / 100));
+          if (volumePercent > 0) {
+            media.muted = false;
+          }
+          console.log("[Calendar Site Opener][content] volume applied by media element", { volumePercent });
+          return;
         }
+
+        console.log("[Calendar Site Opener][content] volume skipped (player/media not ready)");
       };
 
       setTimeout(applyOnce, firstDelayMs);
@@ -520,29 +525,6 @@ function debugLog(message, detail = null) {
     return;
   }
   console.log(`${DEBUG_PREFIX} ${message}`);
-}
-
-function debugError(message, error, detail = null) {
-  console.error(`${DEBUG_PREFIX} ${message}`, {
-    error: error?.message || String(error),
-    ...(detail || {})
-  });
-  debugLog("volume apply done", { tabId, targetVolume });
-}
-
-function debugLog(message, detail = null) {
-  if (detail) {
-    console.log(`${DEBUG_PREFIX} ${message}`, detail);
-    return;
-  }
-  console.log(`${DEBUG_PREFIX} ${message}`);
-}
-
-function debugError(message, error, detail = null) {
-  console.error(`${DEBUG_PREFIX} ${message}`, {
-    error: error?.message || String(error),
-    ...(detail || {})
-  });
 }
 
 function debugError(message, error, detail = null) {
