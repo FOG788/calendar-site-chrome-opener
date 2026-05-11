@@ -391,8 +391,8 @@ async function openEventIfDue(event) {
   const createdTab = await chrome.tabs.create({ url: buildOpenUrl(event.url), active: settings.openActiveTab, windowId });
 
   if (createdTab?.id) {
-    if (Number.isFinite(event.volume) && isYouTubeUrl(event.url)) {
-      applyYouTubeVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds).catch(() => {});
+    if (Number.isFinite(event.volume)) {
+      applyVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds).catch(() => {});
     }
 
     if (Number.isFinite(event.endTime) && event.endTime > Date.now()) {
@@ -451,14 +451,7 @@ async function openEventIfDue(event) {
   await markEventFired(event);
 }
 
-function isYouTubeUrl(rawUrl) {
-  const safe = safeUrl(rawUrl);
-  if (!safe) return false;
-  const hostname = new URL(safe).hostname;
-  return /(^|\.)youtube\.com$/i.test(hostname) || /(^|\.)youtu\.be$/i.test(hostname);
-}
-
-async function applyYouTubeVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
+async function applyVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
   const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
   const delayMs = Math.max(0, Number(waitSeconds || 0) * 1000);
 
