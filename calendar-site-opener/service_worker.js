@@ -392,7 +392,10 @@ async function openEventIfDue(event) {
 
   if (createdTab?.id) {
     if (Number.isFinite(event.volume)) {
-      applyVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds).catch(() => {});
+      waitForTabLoadComplete(createdTab.id, 15000)
+        .then(() => applyVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds))
+        .catch(() => applyVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds))
+        .catch(() => {});
     }
 
     if (Number.isFinite(event.endTime) && event.endTime > Date.now()) {
@@ -449,6 +452,30 @@ async function openEventIfDue(event) {
   }
 
   await markEventFired(event);
+}
+
+
+function waitForTabLoadComplete(tabId, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const done = (ok) => {
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      clearTimeout(timer);
+      ok ? resolve() : reject(new Error("tab load wait timeout"));
+    };
+
+    const onUpdated = (updatedTabId, info) => {
+      if (updatedTabId !== tabId) return;
+      if (info.status === "complete") done(true);
+    };
+
+    const timer = setTimeout(() => done(false), timeoutMs);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+
+    chrome.tabs.get(tabId, (tab) => {
+      if (chrome.runtime.lastError) return;
+      if (tab?.status === "complete") done(true);
+    });
+  });
 }
 
 async function applyVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
