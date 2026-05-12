@@ -9,7 +9,9 @@ const DEFAULT_SETTINGS = {
   missedGraceMinutes: 10,
   openActiveTab: true,
   loopStartDelaySeconds: 10,
-  volumeApplyWaitSeconds: 5
+  volumeApplyDelaySeconds1: 0,
+  volumeApplyDelaySeconds2: 1,
+  volumeApplyDelaySeconds3: 2
 };
 
 const ALARM_REFRESH = "refresh-calendar-events";
@@ -126,8 +128,10 @@ function normalizeSettings(settings) {
     refreshMinutes: clampInteger(settings.refreshMinutes, 1, 24 * 60, DEFAULT_SETTINGS.refreshMinutes),
     missedGraceMinutes: clampInteger(settings.missedGraceMinutes, 0, 24 * 60, DEFAULT_SETTINGS.missedGraceMinutes),
     openActiveTab: Boolean(settings.openActiveTab),
-    loopStartDelaySeconds: clampInteger(settings.loopStartDelaySeconds, 1, 10, DEFAULT_SETTINGS.loopStartDelaySeconds),
-    volumeApplyWaitSeconds: clampInteger(settings.volumeApplyWaitSeconds, 1, 10, DEFAULT_SETTINGS.volumeApplyWaitSeconds)
+    loopStartDelaySeconds: clampInteger(settings.loopStartDelaySeconds, 0, 30, DEFAULT_SETTINGS.loopStartDelaySeconds),
+    volumeApplyDelaySeconds1: clampInteger(settings.volumeApplyDelaySeconds1, 0, 60, DEFAULT_SETTINGS.volumeApplyDelaySeconds1),
+    volumeApplyDelaySeconds2: clampInteger(settings.volumeApplyDelaySeconds2, 0, 60, DEFAULT_SETTINGS.volumeApplyDelaySeconds2),
+    volumeApplyDelaySeconds3: clampInteger(settings.volumeApplyDelaySeconds3, 0, 60, DEFAULT_SETTINGS.volumeApplyDelaySeconds3)
   };
 }
 
@@ -395,12 +399,9 @@ async function openEventIfDue(event) {
 
   if (createdTab?.id) {
     if (Number.isFinite(event.volume)) {
-      debugLog("volume schedule", { tabId: createdTab.id, afterSeconds: settings.volumeApplyWaitSeconds, volume: event.volume });
-      setTimeout(() => {
-        applyVolumeWhenReady(createdTab.id, event.volume, settings.volumeApplyWaitSeconds).catch((error) => {
-          debugError("volume apply failed", error, { tabId: createdTab.id, url: event.url });
-        });
-      }, settings.volumeApplyWaitSeconds * 1000);
+      const volumeDelays = [settings.volumeApplyDelaySeconds1, settings.volumeApplyDelaySeconds2, settings.volumeApplyDelaySeconds3];
+      debugLog("volume schedule", { tabId: createdTab.id, delaySeconds: volumeDelays, volume: event.volume });
+      scheduleVolumeApplyAttempts(createdTab.id, event.volume, volumeDelays, event.url);
     } else {
       debugLog("volume skipped", {
         tabId: createdTab.id,
@@ -478,16 +479,30 @@ async function applyLoopToggleInTab(tabId) {
   debugLog("loop apply done", { tabId });
 }
 
-async function applyVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
+function scheduleVolumeApplyAttempts(tabId, volumeNormalized, delaySecondsList, eventUrl = "") {
+  const scheduleMs = (delaySecondsList || [])
+    .map((seconds) => Math.max(0, Number(seconds || 0) * 1000))
+    .slice(0, 3);
+
+  const attempts = scheduleMs.length ? scheduleMs : [0];
+  attempts.forEach((delayMs) => {
+    setTimeout(() => {
+      applyVolumeWhenReady(tabId, volumeNormalized).catch((error) => {
+        debugError("volume apply failed", error, { tabId, url: eventUrl, delayMs });
+      });
+    }, delayMs);
+  });
+}
+
+async function applyVolumeWhenReady(tabId, volumeNormalized) {
   const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
-  const delayMs = Math.max(0, Number(waitSeconds || 0) * 1000);
-  debugLog("volume apply start", { tabId, targetVolume, delayMs });
+  debugLog("volume apply start", { tabId, targetVolume });
 
   await chrome.scripting.executeScript({
     target: { tabId },
     world: "MAIN",
-    func: (volumePercent, firstDelayMs) => {
-      console.log("[Calendar Site Opener][content] volume script start", { volumePercent, firstDelayMs });
+    func: (volumePercent) => {
+      console.log("[Calendar Site Opener][content] volume script start", { volumePercent });
       const applyOnce = () => {
         const player = document.getElementById("movie_player");
         if (player && typeof player.setVolume === "function") {
@@ -510,11 +525,9 @@ async function applyVolumeWhenReady(tabId, volumeNormalized, waitSeconds) {
         console.log("[Calendar Site Opener][content] volume skipped (player/media not ready)");
       };
 
-      setTimeout(applyOnce, firstDelayMs);
-      setTimeout(applyOnce, firstDelayMs + 1000);
-      setTimeout(applyOnce, firstDelayMs + 2000);
+      applyOnce();
     },
-    args: [targetVolume, delayMs]
+    args: [targetVolume]
   });
   debugLog("volume apply done", { tabId, targetVolume });
 }
