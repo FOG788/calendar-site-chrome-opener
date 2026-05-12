@@ -13,7 +13,9 @@ const fields = {
   missedGraceMinutes: document.getElementById("missedGraceMinutes"),
   openActiveTab: document.getElementById("openActiveTab"),
   loopStartDelaySeconds: document.getElementById("loopStartDelaySeconds"),
-  volumeApplyWaitSeconds: document.getElementById("volumeApplyWaitSeconds")
+  volumeApplyDelaySeconds1: document.getElementById("volumeApplyDelaySeconds1"),
+  volumeApplyDelaySeconds2: document.getElementById("volumeApplyDelaySeconds2"),
+  volumeApplyDelaySeconds3: document.getElementById("volumeApplyDelaySeconds3")
 };
 
 loadSettings();
@@ -33,7 +35,9 @@ form.addEventListener("submit", async (event) => {
     missedGraceMinutes: fields.missedGraceMinutes.value,
     openActiveTab: fields.openActiveTab.checked,
     loopStartDelaySeconds: fields.loopStartDelaySeconds.value,
-    volumeApplyWaitSeconds: fields.volumeApplyWaitSeconds.value
+    volumeApplyDelaySeconds1: fields.volumeApplyDelaySeconds1.value,
+    volumeApplyDelaySeconds2: fields.volumeApplyDelaySeconds2.value,
+    volumeApplyDelaySeconds3: fields.volumeApplyDelaySeconds3.value
   };
 
   const result = await chrome.runtime.sendMessage({
@@ -74,7 +78,9 @@ function populate(settings) {
   fields.missedGraceMinutes.value = settings.missedGraceMinutes;
   fields.openActiveTab.checked = settings.openActiveTab;
   fields.loopStartDelaySeconds.value = settings.loopStartDelaySeconds;
-  fields.volumeApplyWaitSeconds.value = settings.volumeApplyWaitSeconds;
+  fields.volumeApplyDelaySeconds1.value = settings.volumeApplyDelaySeconds1;
+  fields.volumeApplyDelaySeconds2.value = settings.volumeApplyDelaySeconds2;
+  fields.volumeApplyDelaySeconds3.value = settings.volumeApplyDelaySeconds3;
 }
 
 async function loadCalendarOptions(selectedId) {
