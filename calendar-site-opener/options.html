@@ -58,13 +58,23 @@
         </label>
 
         <label>
-          ループ処理開始までの秒数（1-10）
-          <input id="loopStartDelaySeconds" name="loopStartDelaySeconds" type="number" min="1" max="10" />
+          ループ処理開始までの秒数（0-30）
+          <input id="loopStartDelaySeconds" name="loopStartDelaySeconds" type="number" min="0" max="30" />
         </label>
 
         <label>
-          指定音量適用の試行秒数（1-10）
-          <input id="volumeApplyWaitSeconds" name="volumeApplyWaitSeconds" type="number" min="1" max="10" />
+          音量適用1回目までの秒数（0-60）
+          <input id="volumeApplyDelaySeconds1" name="volumeApplyDelaySeconds1" type="number" min="0" max="60" />
+        </label>
+
+        <label>
+          音量適用2回目までの秒数（0-60）
+          <input id="volumeApplyDelaySeconds2" name="volumeApplyDelaySeconds2" type="number" min="0" max="60" />
+        </label>
+
+        <label>
+          音量適用3回目までの秒数（0-60）
+          <input id="volumeApplyDelaySeconds3" name="volumeApplyDelaySeconds3" type="number" min="0" max="60" />
         </label>
 
         <button type="submit">保存</button>
