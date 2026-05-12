@@ -401,11 +401,7 @@ async function openEventIfDue(event) {
     if (Number.isFinite(event.volume)) {
       const volumeDelays = [settings.volumeApplyDelaySeconds1, settings.volumeApplyDelaySeconds2, settings.volumeApplyDelaySeconds3];
       debugLog("volume schedule", { tabId: createdTab.id, delaySeconds: volumeDelays, volume: event.volume });
-      setTimeout(() => {
-        applyVolumeWhenReady(createdTab.id, event.volume, volumeDelays).catch((error) => {
-          debugError("volume apply failed", error, { tabId: createdTab.id, url: event.url });
-        });
-      }, 0);
+      scheduleVolumeApplyAttempts(createdTab.id, event.volume, volumeDelays, event.url);
     } else {
       debugLog("volume skipped", {
         tabId: createdTab.id,
@@ -483,18 +479,30 @@ async function applyLoopToggleInTab(tabId) {
   debugLog("loop apply done", { tabId });
 }
 
-async function applyVolumeWhenReady(tabId, volumeNormalized, delaySecondsList) {
-  const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
+function scheduleVolumeApplyAttempts(tabId, volumeNormalized, delaySecondsList, eventUrl = "") {
   const scheduleMs = (delaySecondsList || [])
     .map((seconds) => Math.max(0, Number(seconds || 0) * 1000))
     .slice(0, 3);
-  debugLog("volume apply start", { tabId, targetVolume, scheduleMs });
+
+  const attempts = scheduleMs.length ? scheduleMs : [0];
+  attempts.forEach((delayMs) => {
+    setTimeout(() => {
+      applyVolumeWhenReady(tabId, volumeNormalized).catch((error) => {
+        debugError("volume apply failed", error, { tabId, url: eventUrl, delayMs });
+      });
+    }, delayMs);
+  });
+}
+
+async function applyVolumeWhenReady(tabId, volumeNormalized) {
+  const targetVolume = Math.round(Math.min(1, Math.max(0, volumeNormalized)) * 100);
+  debugLog("volume apply start", { tabId, targetVolume });
 
   await chrome.scripting.executeScript({
     target: { tabId },
     world: "MAIN",
-    func: (volumePercent, delaysMs) => {
-      console.log("[Calendar Site Opener][content] volume script start", { volumePercent, delaysMs });
+    func: (volumePercent) => {
+      console.log("[Calendar Site Opener][content] volume script start", { volumePercent });
       const applyOnce = () => {
         const player = document.getElementById("movie_player");
         if (player && typeof player.setVolume === "function") {
@@ -517,12 +525,9 @@ async function applyVolumeWhenReady(tabId, volumeNormalized, delaySecondsList) {
         console.log("[Calendar Site Opener][content] volume skipped (player/media not ready)");
       };
 
-      const normalizedDelays = Array.isArray(delaysMs) && delaysMs.length ? delaysMs : [0];
-      normalizedDelays.slice(0, 3).forEach((delayMs) => {
-        setTimeout(applyOnce, Math.max(0, Number(delayMs || 0)));
-      });
+      applyOnce();
     },
-    args: [targetVolume, scheduleMs]
+    args: [targetVolume]
   });
   debugLog("volume apply done", { tabId, targetVolume });
 }
