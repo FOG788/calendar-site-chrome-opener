@@ -229,7 +229,7 @@ async function fetchCalendarEvents(interactive = false) {
   return data.items || [];
 }
 
-function extractUrl(event, settings) {
+function extractUrls(event, settings) {
   const text = joinEventText(event, ["description", "location", "summary"]);
 
   const matches = text.match(/https?:\/\/[^\s<>"']+/gi) || [];
@@ -237,12 +237,47 @@ function extractUrl(event, settings) {
     .map((url) => safeUrl(url.replace(/[),.。]+$/, "")))
     .filter(Boolean);
 
-  if (!candidates.length) {
-    return settings.skipNoUrlEvents ? null : settings.defaultUrl;
+  const uniqueCandidates = dedupeUrls(candidates);
+
+  if (uniqueCandidates.length) {
+    return uniqueCandidates;
   }
 
-  const randomIndex = Math.floor(Math.random() * candidates.length);
-  return candidates[randomIndex];
+  if (settings.skipNoUrlEvents) {
+    return [];
+  }
+
+  const defaultUrl = safeUrl(settings.defaultUrl || "");
+  return defaultUrl ? [defaultUrl] : [];
+}
+
+function dedupeUrls(urls) {
+  const result = [];
+  const seen = new Set();
+
+  urls.forEach((url) => {
+    const key = buildUrlDedupeKey(url);
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push(url);
+  });
+
+  return result;
+}
+
+function buildUrlDedupeKey(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    const normalizedPath = parsed.pathname
+      .split("/")
+      .map((segment) => segment.split(";")[0])
+      .join("/");
+    return `${parsed.protocol}//${parsed.host}${normalizedPath}${parsed.search}${parsed.hash}`;
+  } catch {
+    return rawUrl;
+  }
 }
 
 function extractWindowName(event, settings) {
@@ -261,6 +296,11 @@ function extractCloseToken(event) {
 
   const token = text.match(/\[CLOSE:([^\]\n]+)\]/i) || text.match(/#close:([^\s\n]+)/i);
   return token ? String(token[1] || "").trim() : "";
+}
+
+function hasFullOpenTag(event) {
+  const text = joinEventText(event, ["summary", "description", "location"]);
+  return /\[FULL(?:_OPEN)?\]/i.test(text) || /#full(?:_open)?\b/i.test(text);
 }
 
 function safeUrl(url) {
@@ -290,27 +330,39 @@ async function normalizeEvents(events) {
         return result;
       }
 
-      const url = extractUrl(event, settings);
-      if (!url) {
+      const urls = extractUrls(event, settings);
+      if (!urls.length) {
         return result;
       }
 
       const windowName = extractWindowName(event, settings);
       const closeToken = extractCloseToken(event);
+      const fullOpen = hasFullOpenTag(event);
       const volume = extractVolume(event);
-      debugLog("event normalized", { id: event.id, title: event.summary || "", start: event.start.dateTime, volume, url });
-
-      result.push({
-        key: `${event.id}:${event.start.dateTime}`,
-        eventId: event.id,
+      const selectedUrls = fullOpen ? urls : [urls[Math.floor(Math.random() * urls.length)]];
+      debugLog("event normalized", {
+        id: event.id,
         title: event.summary || "",
-        startTime,
-        startIso: event.start.dateTime,
-        endTime: closeToken && event.end?.dateTime ? new Date(event.end.dateTime).getTime() : null,
-        url,
-        windowName,
-        closeToken,
-        volume
+        start: event.start.dateTime,
+        volume,
+        fullOpen,
+        selectedUrlCount: selectedUrls.length
+      });
+
+      selectedUrls.forEach((url, index) => {
+        result.push({
+          key: `${event.id}:${event.start.dateTime}:${index}`,
+          eventId: event.id,
+          title: event.summary || "",
+          startTime,
+          startIso: event.start.dateTime,
+          endTime: !fullOpen && closeToken && event.end?.dateTime ? new Date(event.end.dateTime).getTime() : null,
+          url,
+          windowName,
+          closeToken,
+          fullOpen,
+          volume
+        });
       });
       return result;
     }, []).sort((a, b) => a.startTime - b.startTime);
@@ -430,6 +482,18 @@ async function openEventIfDue(event) {
 
 async function applyLoopToggleInTab(tabId) {
   debugLog("loop apply start", { tabId });
+
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (!tab?.id) {
+    debugLog("loop apply skipped", { tabId, reason: "tab missing" });
+    return;
+  }
+
+  if (!/^https?:/i.test(tab.url || "")) {
+    debugLog("loop apply skipped", { tabId, reason: "unsupported url", url: tab.url || "" });
+    return;
+  }
+
   await chrome.scripting.executeScript({
     target: { tabId },
     world: "MAIN",
@@ -541,8 +605,18 @@ function debugLog(message, detail = null) {
 }
 
 function debugError(message, error, detail = null) {
+  const fallbackText = String(error);
+  let serializedError = fallbackText;
+  if (error && typeof error === "object") {
+    try {
+      serializedError = JSON.stringify(error);
+    } catch (_) {
+      serializedError = fallbackText;
+    }
+  }
+
   console.error(`${DEBUG_PREFIX} ${message}`, {
-    error: error?.message || String(error),
+    error: error?.message || serializedError,
     ...(detail || {})
   });
 }
@@ -681,12 +755,17 @@ async function createEvent(input) {
   const title = String(input.title || "新規予定").trim();
   const windowName = String(input.windowName || "").trim();
   const closeToken = String(input.closeToken || "").trim();
+  const fullOpen = Boolean(input.fullOpen);
   const volumePercent = clampInteger(input.volumePercent, 0, 100, null);
 
   const descriptionLines = [];
   if (url) descriptionLines.push(url);
   if (windowName) descriptionLines.push(`[WIN:${windowName}]`);
-  if (closeToken) descriptionLines.push(`[CLOSE:${closeToken}]`);
+  if (fullOpen) {
+    descriptionLines.push("[FULL_OPEN]");
+  } else if (closeToken) {
+    descriptionLines.push(`[CLOSE:${closeToken}]`);
+  }
   if (Number.isFinite(volumePercent)) descriptionLines.push(`[VOL:${volumePercent}]`);
 
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
