@@ -4,6 +4,7 @@ const nextCloseEl = document.getElementById("nextClose");
 
 const connectButton = document.getElementById("connect");
 const refreshButton = document.getElementById("refresh");
+const openCalendarButton = document.getElementById("openCalendar");
 const openOptionsButton = document.getElementById("openOptions");
 const openCreateEventFormButton = document.getElementById("openCreateEventForm");
 
@@ -17,6 +18,10 @@ refreshButton.addEventListener("click", async () => {
   setStatus("再読み込み中...");
   const result = await chrome.runtime.sendMessage({ type: "refresh" });
   renderResult(result, "再読み込みしました。");
+});
+
+openCalendarButton.addEventListener("click", async () => {
+  await chrome.tabs.create({ url: "https://calendar.google.com/calendar/u/0/r" });
 });
 
 openOptionsButton.addEventListener("click", () => {
