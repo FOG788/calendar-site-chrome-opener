@@ -10,8 +10,15 @@ body {
 }
 
 .popup {
-  width: 280px;
+  width: clamp(340px, 92vw, 420px);
+  min-height: 620px;
+  max-height: none;
   padding: 14px;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: visible;
 }
 
 .options {
@@ -58,7 +65,8 @@ button.secondary {
 }
 
 #status,
-#nextEvent {
+#nextEvent,
+#nextClose {
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 13px;
@@ -150,4 +158,9 @@ select {
 
 .event-form-checkbox {
   margin-top: 8px;
+}
+
+
+#nextEvent {
+  min-height: 120px;
 }
