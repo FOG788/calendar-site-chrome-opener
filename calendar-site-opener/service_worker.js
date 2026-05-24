@@ -237,7 +237,7 @@ function extractUrls(event, settings) {
     .map((url) => safeUrl(url.replace(/[),.。]+$/, "")))
     .filter(Boolean);
 
-  const uniqueCandidates = [...new Set(candidates)];
+  const uniqueCandidates = dedupeUrls(candidates);
 
   if (uniqueCandidates.length) {
     return uniqueCandidates;
@@ -249,6 +249,35 @@ function extractUrls(event, settings) {
 
   const defaultUrl = safeUrl(settings.defaultUrl || "");
   return defaultUrl ? [defaultUrl] : [];
+}
+
+function dedupeUrls(urls) {
+  const result = [];
+  const seen = new Set();
+
+  urls.forEach((url) => {
+    const key = buildUrlDedupeKey(url);
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push(url);
+  });
+
+  return result;
+}
+
+function buildUrlDedupeKey(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    const normalizedPath = parsed.pathname
+      .split("/")
+      .map((segment) => segment.split(";")[0])
+      .join("/");
+    return `${parsed.protocol}//${parsed.host}${normalizedPath}${parsed.search}${parsed.hash}`;
+  } catch {
+    return rawUrl;
+  }
 }
 
 function extractWindowName(event, settings) {
